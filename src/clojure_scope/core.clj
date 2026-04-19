@@ -13,7 +13,7 @@
                           :config {:analysis true}})))
 
 (defn var-id [{:keys [ns name]}]
-  [ns name])
+  [(str ns) (str name)])
 
 (defn node
   [{:keys [ns name filename row col end-row end-col defined-by] :as definition}]
@@ -53,8 +53,8 @@
         edges (->> var-usages
                    (keep (fn [usage]
                            (when-let [source-var (:from-var usage)]
-                             (let [source-id [(:from usage) source-var]
-                                   target-id [(:to usage) (:name usage)]]
+                             (let [source-id [(str (:from usage)) (str source-var)]
+                                   target-id [(str (:to usage)) (str (:name usage))]]
                                (when (and (internal-var? source-id)
                                           (internal-var? target-id))
                                  (edge usage))))))
@@ -63,6 +63,34 @@
                    vec)]
     {:nodes nodes
      :edges edges}))
+
+(defn definition-source [source-folder {:keys [filename row end-row]}]
+  (when (and filename row)
+    (let [file-path (let [file (io/file filename)]
+                      (if (.isAbsolute file)
+                        file
+                        (io/file source-folder filename)))
+          source-lines (-> file-path slurp string/split-lines)
+          start-index (dec row)
+          end-index (dec (or end-row row))]
+      (->> source-lines
+           (drop start-index)
+           (take (inc (- end-index start-index)))
+           (string/join "\n")))))
+
+(defn source-code-by-var [source-folder definitions-by-id]
+  (into {}
+        (keep (fn [[[namespace name] definition]]
+                (when-let [source (definition-source source-folder definition)]
+                  [[namespace name] source])))
+        definitions-by-id))
+
+(defn source-code-by-var-for-folder [source-folder]
+  (let [{:keys [var-definitions]} (analyze-folder source-folder)
+        definitions-by-id (into {}
+                                (map (juxt var-id identity))
+                                var-definitions)]
+    (source-code-by-var source-folder definitions-by-id)))
 
 (defn -main [& args]
   (let [[folder & _] args]
@@ -178,38 +206,51 @@
                     "var-dependency-graph"))))
 
 (def tree-toggle-script
-  "document.addEventListener('click',function(event){const toggleButton=event.target.closest('button.tree-toggle');if(!toggleButton){return;}const treeNode=toggleButton.closest('li.tree-node');if(!treeNode){return;}const childList=Array.from(treeNode.children).find(function(element){return element.classList.contains('tree-children');});if(!childList){return;}const toggleIcon=toggleButton.querySelector('.tree-toggle-icon');const isCollapsed=childList.hasAttribute('hidden');if(isCollapsed){childList.removeAttribute('hidden');if(toggleIcon){toggleIcon.textContent='▾';}toggleButton.setAttribute('aria-expanded','true');}else{childList.setAttribute('hidden','');if(toggleIcon){toggleIcon.textContent='▸';}toggleButton.setAttribute('aria-expanded','false');}});")
+  "document.addEventListener('click',function(event){const toggleButton=event.target.closest('button.tree-toggle,button.source-toggle');if(!toggleButton){return;}const treeNode=toggleButton.closest('li.tree-node');if(!treeNode){return;}const isSourceToggle=toggleButton.classList.contains('source-toggle');const childList=Array.from(treeNode.children).find(function(element){return isSourceToggle?element.classList.contains('tree-source'):element.classList.contains('tree-children');});if(!childList){return;}const toggleIcon=toggleButton.querySelector(isSourceToggle?'.source-toggle-icon':'.tree-toggle-icon');const isCollapsed=childList.hasAttribute('hidden');if(isCollapsed){childList.removeAttribute('hidden');if(toggleIcon){toggleIcon.textContent='▾';}toggleButton.setAttribute('aria-expanded','true');}else{childList.setAttribute('hidden','');if(toggleIcon){toggleIcon.textContent='▸';}toggleButton.setAttribute('aria-expanded','false');}});")
 
-(defn tree-node->hiccup [{:keys [namespace name cycle? children]}]
-  [:li.tree-node
-   [:div.tree-node-label
-    (if (seq children)
-      [:button.tree-toggle {:type "button"
-                            :aria-expanded "false"}
-       [:span.tree-toggle-icon "▸"]
-       [:span.tree-node-name
-        (str namespace "/" name (when cycle? " (cycle)"))]]
-      [:span.tree-node-name
-       (str namespace "/" name (when cycle? " (cycle)"))])]
-   (when (seq children)
-     (into [:ul.tree-children {:hidden true}]
-           (map tree-node->hiccup children)))])
+(defn tree-node->hiccup
+  ([node]
+   (tree-node->hiccup node {}))
+  ([{:keys [namespace name cycle? children]} source-by-var]
+   (let [source-code (get source-by-var [namespace name])]
+     [:li.tree-node
+      [:div.tree-node-label
+       (if (seq children)
+         [:button.tree-toggle {:type "button"
+                               :aria-expanded "false"}
+          [:span.tree-toggle-icon "▸"]
+          [:span.tree-node-name
+           (str namespace "/" name (when cycle? " (cycle)"))]]
+         [:span.tree-node-name
+          (str namespace "/" name (when cycle? " (cycle)"))])
+       (when source-code
+         [:button.source-toggle {:type "button"
+                                 :aria-expanded "false"}
+          [:span.source-toggle-icon "▸"]
+          [:span.source-toggle-label "source"]])]
+      (when source-code
+        [:pre.tree-source {:hidden true} source-code])
+      (when (seq children)
+        (into [:ul.tree-children {:hidden true}]
+              (map #(tree-node->hiccup % source-by-var) children)))])))
 
 (defn tree-html
-  [edges namespace name]
-  (let [tree-node (tree-node->hiccup (tree-data edges namespace name))]
-    (hiccup/html
-     [:html
-      [:head
-       [:meta {:charset "utf-8"}]
-       [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
-       [:title "Clojure Scope Dependency Tree"]
-       [:style "body{font-family:system-ui,sans-serif;margin:24px;line-height:1.4} .tree-root,.tree-children{list-style:none;margin:0;padding-left:1.25rem} .tree-node{margin:.25rem 0} .tree-node-label{display:flex;align-items:center;gap:.35rem} .tree-toggle{border:0;background:none;cursor:pointer;padding:0;font:inherit;display:inline-flex;align-items:center;gap:.35rem} .tree-node-name{font-family:ui-monospace,monospace} .tree-children[hidden]{display:none}"]]
-      [:body
-       [:main
-        [:h1 "Clojure Scope Dependency Tree"]
-        [:ul.tree-root tree-node]]
-       [:script tree-toggle-script]]])))
+  ([edges namespace name]
+   (tree-html edges namespace name {}))
+  ([edges namespace name source-by-var]
+   (let [tree-node (tree-node->hiccup (tree-data edges namespace name) source-by-var)]
+     (hiccup/html
+      [:html
+       [:head
+        [:meta {:charset "utf-8"}]
+        [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
+        [:title "Clojure Scope Dependency Tree"]
+        [:style "body{font-family:system-ui,sans-serif;margin:24px;line-height:1.4} .tree-root,.tree-children{list-style:none;margin:0;padding-left:1.25rem} .tree-node{margin:.25rem 0} .tree-node-label{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap} .tree-toggle,.source-toggle{border:0;background:none;cursor:pointer;padding:0;font:inherit;display:inline-flex;align-items:center;gap:.35rem} .tree-node-name{font-family:ui-monospace,monospace} .tree-children[hidden],.tree-source[hidden]{display:none} .tree-source{margin:.25rem 0 .25rem 1.4rem;padding:.5rem;background:#f6f8fa;border-radius:.4rem;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,monospace}"]]
+       [:body
+        [:main
+         [:h1 "Clojure Scope Dependency Tree"]
+         [:ul.tree-root tree-node]]]
+       [:script tree-toggle-script]]))))
 
 (deftest test-tree-html
   (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
@@ -220,6 +261,16 @@
                                    "demo.core"
                                    "a")
                          "<span class=\"tree-toggle-icon\">▸</span><span class=\"tree-node-name\">demo.core/a</span>"))
+  (is (string/includes? (tree-html []
+                                   "demo.core"
+                                   "a"
+                                   {["demo.core" "a"] "(defn a [] :ok)"})
+                         "button.source-toggle"))
+  (is (string/includes? (tree-html []
+                                   "demo.core"
+                                   "a"
+                                   {["demo.core" "a"] "(defn a [] :ok)"})
+                         "(defn a [] :ok)"))
   (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
                                    "demo.core"
                                    "b")
@@ -230,8 +281,9 @@
   starting from a given var. Each tree branch is closed by default,
   but can be opended by clicking."
   [source-folder namespace name html-file-name]
-  (spit (io/file html-file-name)
-        (tree-html (:edges (var-dependency-graph source-folder)) namespace name)))
+  (let [{:keys [edges]} (var-dependency-graph source-folder)]
+    (spit (io/file html-file-name)
+          (tree-html edges namespace name (source-code-by-var-for-folder source-folder)))))
 
 (comment
   (var-dependency-graph "src")
@@ -245,4 +297,6 @@
                     "init-mappa"
                     "temp/test.html")
 
+
+  (source-code-by-var-for-folder "/Users/jukka/google-drive/src/mappa/src")
   )
