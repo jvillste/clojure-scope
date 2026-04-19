@@ -19,12 +19,12 @@
            (defn c [] 1)
            (defn b [] (c))
            (defn a [] (b) c)")
-    (is (= {:edges
+    (is (= {:nodes
+            [{:namespace "demo.core", :name "a", :start-row 4, :end-row 4}
+             {:namespace "demo.core", :name "b", :start-row 3, :end-row 3}
+             {:namespace "demo.core", :name "c", :start-row 2, :end-row 2}],
+            :edges
             [{:from ["demo.core" "a"], :to ["demo.core" "b"]}
              {:from ["demo.core" "a"], :to ["demo.core" "c"]}
-             {:from ["demo.core" "b"], :to ["demo.core" "c"]}],
-            :nodes
-            [{:name "a", :namespace "demo.core"}
-             {:name "b", :namespace "demo.core"}
-             {:name "c", :namespace "demo.core"}]}
+             {:from ["demo.core" "b"], :to ["demo.core" "c"]}]}
            (sut/var-dependency-graph (.getPath dir))))))

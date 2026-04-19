@@ -21,9 +21,9 @@
    :name (str name)
    ;; :defined-by defined-by
    ;; :filename filename
-   ;; :row row
+   :start-row row
    ;; :col col
-   ;; :end-row end-row
+   :end-row end-row
    ;; :end-col end-col
    ;;:definition definition
    })
