@@ -3,36 +3,37 @@
             [clojure.pprint :as pprint]))
 
 (defn analyze-folder [folder]
-  (:analysis
-   (kondo/run! {:lint [folder]
-                :skip-lint true
-                :config {:analysis true}})))
+  (:analysis (kondo/run! {:lint [folder]
+                          :skip-lint true
+                          :config {:analysis true}})))
 
 (defn var-id [{:keys [ns name]}]
   [ns name])
 
 (defn node
   [{:keys [ns name filename row col end-row end-col defined-by] :as definition}]
-  {:id [ns name]
-   :ns ns
-   :name name
-   :defined-by defined-by
-   :filename filename
-   :row row
-   :col col
-   :end-row end-row
-   :end-col end-col
-   :definition definition})
+  {;; :id [ns name]
+   :ns (str ns)
+   :name (str name)
+   ;; :defined-by defined-by
+   ;; :filename filename
+   ;; :row row
+   ;; :col col
+   ;; :end-row end-row
+   ;; :end-col end-col
+   ;;:definition definition
+   })
 
 (defn edge
   [{:keys [from from-var to name arity filename row col] :as usage}]
-  {:from [from from-var]
-   :to [to name]
-   :type (if (some? arity) :call :ref)
-   :filename filename
-   :row row
-   :col col
-   :usage usage})
+  {:from [(str from) (str from-var)]
+   :to [(str to) (str name)]
+   ;; :type (if (some? arity) :call :ref)
+   ;; :filename filename
+   ;; :row row
+   ;; :col col
+   ;; :usage usage
+   })
 
 (defn var-dependency-graph [folder]
   (let [{:keys [var-definitions var-usages]} (analyze-folder folder)
@@ -55,8 +56,7 @@
                                  (edge usage))))))
                    (sort-by (juxt :from :to :filename :row :col))
                    vec)]
-    {:folder folder
-     :nodes nodes
+    {:nodes nodes
      :edges edges}))
 
 (defn -main [& args]
@@ -70,4 +70,5 @@
 (comment
   (var-dependency-graph "src")
   (var-dependency-graph "/Users/jukka/google-drive/src/mappa/src")
+
   )
