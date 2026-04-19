@@ -2,3 +2,5 @@
 /.cpcache/
 /.lsp/
 /.nrepl-port
+/temp/
+.DS_Store
