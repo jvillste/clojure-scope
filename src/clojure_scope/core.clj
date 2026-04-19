@@ -1,8 +1,11 @@
 (ns clojure-scope.core
   (:require
    [clj-kondo.core :as kondo]
+   [clojure.java.io :as io]
    [clojure.pprint :as pprint]
-   [clojure.test :refer [deftest is]]))
+   [clojure.string :as string]
+   [clojure.test :refer [deftest is]]
+   [hiccup.core :as hiccup]))
 
 (defn analyze-folder [folder]
   (:analysis (kondo/run! {:lint [folder]
@@ -117,11 +120,112 @@
                            namespace name)]
     (println line)))
 
+(defn dependencies-by-var [edges]
+  (reduce (fn [acc {:keys [from to]}]
+            (update acc from (fnil conj []) to))
+          {}
+          edges))
+
+(defn tree-data
+  [edges namespace name]
+  (let [dependencies-by-var (dependencies-by-var edges)]
+    (letfn [(walk [var-id path]
+              (if (contains? path var-id)
+                {:namespace (first var-id)
+                 :name (second var-id)
+                 :cycle? true
+                 :children []}
+                {:namespace (first var-id)
+                 :name (second var-id)
+                 :children (->> (get dependencies-by-var var-id)
+                                sort
+                                (map #(walk % (conj path var-id)))
+                                vec)}))]
+      (walk [namespace name] #{}))))
+
+(deftest test-tree-data
+  (is (= {:namespace "clojure-scope.core"
+          :name "var-dependency-graph"
+          :children [{:namespace "clojure-scope.core"
+                      :name "analyze-folder"
+                      :children []}
+                     {:namespace "clojure-scope.core"
+                      :name "edge"
+                      :children []}
+                     {:namespace "clojure-scope.core"
+                      :name "node"
+                      :children []}
+                     {:namespace "clojure-scope.core"
+                      :name "var-id"
+                      :children []}]}
+         (tree-data [{:from ["clojure-scope.core" "-main"]
+                      :to ["clojure-scope.core" "var-dependency-graph"]}
+                     {:from ["clojure-scope.core" "print-tree"]
+                      :to ["clojure-scope.core" "tree-lines"]}
+                     {:from ["clojure-scope.core" "print-tree"]
+                      :to ["clojure-scope.core" "var-dependency-graph"]}
+                     {:from ["clojure-scope.core" "test-tree-lines"]
+                      :to ["clojure-scope.core" "tree-lines"]}
+                     {:from ["clojure-scope.core" "var-dependency-graph"]
+                      :to ["clojure-scope.core" "analyze-folder"]}
+                     {:from ["clojure-scope.core" "var-dependency-graph"]
+                      :to ["clojure-scope.core" "edge"]}
+                     {:from ["clojure-scope.core" "var-dependency-graph"]
+                      :to ["clojure-scope.core" "node"]}
+                     {:from ["clojure-scope.core" "var-dependency-graph"]
+                      :to ["clojure-scope.core" "var-id"]}]
+                    "clojure-scope.core"
+                    "var-dependency-graph"))))
+
+(def tree-toggle-script
+  "document.addEventListener('click',function(event){const toggleButton=event.target.closest('button.tree-toggle');if(!toggleButton){return;}const treeNode=toggleButton.closest('li.tree-node');if(!treeNode){return;}const childList=Array.from(treeNode.children).find(function(element){return element.classList.contains('tree-children');});if(!childList){return;}const isCollapsed=childList.hasAttribute('hidden');if(isCollapsed){childList.removeAttribute('hidden');toggleButton.textContent='▾';toggleButton.setAttribute('aria-expanded','true');}else{childList.setAttribute('hidden','');toggleButton.textContent='▸';toggleButton.setAttribute('aria-expanded','false');}});")
+
+(defn tree-node->hiccup [{:keys [namespace name cycle? children]}]
+  [:li.tree-node
+   [:div.tree-node-label
+    (when (seq children)
+      [:button.tree-toggle {:type "button"
+                            :aria-expanded "false"}
+       "▸"])
+    [:span.tree-node-name
+     (str namespace "/" name (when cycle? " (cycle)"))]]
+   (when (seq children)
+     (into [:ul.tree-children {:hidden true}]
+           (map tree-node->hiccup children)))])
+
+(defn tree-html
+  [edges namespace name]
+  (let [tree-node (tree-node->hiccup (tree-data edges namespace name))]
+    (hiccup/html
+     [:html
+      [:head
+       [:meta {:charset "utf-8"}]
+       [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
+       [:title "Clojure Scope Dependency Tree"]
+       [:style "body{font-family:system-ui,sans-serif;margin:24px;line-height:1.4} .tree-root,.tree-children{list-style:none;margin:0;padding-left:1.25rem} .tree-node{margin:.25rem 0} .tree-node-label{display:flex;align-items:center;gap:.35rem} .tree-toggle{border:0;background:none;cursor:pointer;padding:0;font:inherit} .tree-node-name{font-family:ui-monospace,monospace} .tree-children[hidden]{display:none}"]]
+      [:body
+       [:main
+        [:h1 "Clojure Scope Dependency Tree"]
+        [:ul.tree-root tree-node]]
+       [:script tree-toggle-script]]])))
+
+(deftest test-tree-html
+  (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
+                                   "demo.core"
+                                   "a")
+                         "button.tree-toggle"))
+  (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
+                                   "demo.core"
+                                   "a")
+                         "demo.core/a")))
+
 (defn create-tree-html
   "creates a single html file that visualizes the dependency tree
   starting from a given var. Each tree branch is closed by default,
   but can be opended by clicking."
-  [source-folder namespace name html-file-name])
+  [source-folder namespace name html-file-name]
+  (spit (io/file html-file-name)
+        (tree-html (:edges (var-dependency-graph source-folder)) namespace name)))
 
 (comment
   (var-dependency-graph "src")
@@ -129,5 +233,10 @@
   (print-tree "/Users/jukka/google-drive/src/mappa/src"
               "mappa.core"
               "init-mappa")
+
+  (create-tree-html "/Users/jukka/google-drive/src/mappa/src"
+                    "mappa.core"
+                    "init-mappa"
+                    "temp/test.html")
 
   )
