@@ -1,11 +1,13 @@
 (ns clojure-scope.core
   (:require
    [clj-kondo.core :as kondo]
+   [clojure.edn :as edn]
    [clojure.java.io :as io]
    [clojure.pprint :as pprint]
    [clojure.string :as string]
    [clojure.test :refer [deftest is]]
-   [hiccup.core :as hiccup]))
+   [hiccup.core :as hiccup]
+   [medley.core :as medley]))
 
 (defn analyze-folder [folder]
   (:analysis (kondo/run! {:lint [folder]
@@ -99,6 +101,23 @@
         (println "Usage: clojure -M -m clojure-scope.core <source-folder>")
         (System/exit 1)))
     (pprint/pprint (var-dependency-graph folder))))
+
+(defn transitive-closure
+  "returns all wars a given var depends on direclty and indirectly"
+  [root-var edges])
+
+(deftest test-transitive-closure
+  (is (= #{"b" "c" "d"}
+         (transitive-closure ["namespace" "a"]
+                             [{:from ["namespace" "a"],
+                               :to ["namespace" "b"]}
+                              {:from ["namespace" "b"],
+                               :to ["namespace" "c"]}
+                              {:from ["namespace" "b"],
+                               :to ["namespace" "d"]}
+                              {:from ["namespace" "e"],
+                               :to ["namespace" "a"]}]))))
+
 
 (defn tree-lines [edges namespace name]
   (let [dependencies-by-var (reduce (fn [acc {:keys [from to]}]
@@ -259,30 +278,30 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
   (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
                                    "demo.core"
                                    "a")
-                         "button.tree-toggle"))
+                        "button.tree-toggle"))
   (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
                                    "demo.core"
                                    "a")
-                         "<span class=\"tree-toggle-icon\">▸</span><span class=\"tree-node-name\">demo.core/a</span>"))
+                        "<span class=\"tree-toggle-icon\">▸</span><span class=\"tree-node-name\">demo.core/a</span>"))
   (is (string/includes? (tree-html []
                                    "demo.core"
                                    "a"
                                    {["demo.core" "a"] "(defn a [] :ok)"})
-                         "button.source-toggle"))
+                        "button.source-toggle"))
   (is (string/includes? (tree-html []
                                    "demo.core"
                                    "a"
                                    {["demo.core" "a"] "(defn a [] :ok)"})
-                         "(defn a [] :ok)"))
+                        "(defn a [] :ok)"))
   (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
                                    "demo.core"
                                    "b")
-                         "<span class=\"tree-node-name\">demo.core/b</span>"))
+                        "<span class=\"tree-node-name\">demo.core/b</span>"))
   (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}
                                     {:from ["demo.core" "b"] :to ["demo.core" "c"]}]
                                    "demo.core"
                                    "a")
-                         "event.shiftKey&&treeNodeName&&toggleButton.classList.contains('tree-toggle')")))
+                        "event.shiftKey&&treeNodeName&&toggleButton.classList.contains('tree-toggle')")))
 
 (defn create-tree-html
   "creates a single html file that visualizes the dependency tree
@@ -305,6 +324,51 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
                     "init-mappa"
                     "temp/test.html")
 
+  (analyze-folder "/Users/jukka/google-drive/src/mappa/src")
+
 
   (source-code-by-var-for-folder "/Users/jukka/google-drive/src/mappa/src")
+
+  (let [var-dependency-graph (var-dependency-graph "/Users/jukka/google-drive/src/mappa/src")
+        edges (->> var-dependency-graph
+                   :edges
+                   (filter (fn [edge]
+                             (and (= "mappa.core" (first (:to edge)))
+                                  (= "mappa.core" (first (:from edge)))))))
+        callers (->> edges
+                     (group-by :to)
+                     (medley/map-vals (fn [edges]
+                                        (distinct (map second (map :from edges)))))
+                     (medley/map-keys second))
+        calls (->> edges
+                   (group-by :from)
+                   (medley/map-vals (fn [edges]
+                                      (distinct (map second (map :to edges)))))
+                   (medley/map-keys second))
+        reference-counts (->> edges
+                              (group-by :to)
+                              (medley/map-vals count)
+                              (medley/map-keys second)
+                              (sort-by (juxt second first))
+                              (into {}))
+        tags (medley/map-vals :tags (medley/index-by :var (edn/read-string (slurp "/Users/jukka/google-drive/src/mappa/temp/core-var-tags.edn"))))
+        nodes (for [node (->> (:nodes var-dependency-graph)
+                              (filter (comp #{"mappa.core"} :namespace))
+                              (filter (comp #{"create-and-write-vertex-buffer"} :name)))]
+
+                {:name (:name node)
+                 ;; :reference-count (get reference-counts (:name node))
+                 :callers (get callers (:name node))
+                 :calls (get calls (:name node))
+                 :tags-set (set (get tags (:name node)))})]
+    (->>  nodes
+          (sort-by (comp count :callers)))
+    #_(for [tag (sort (distinct (mapcat :tags-set nodes)))]
+      {:tag tag
+       :vars (->> nodes
+                  (filter (fn [node]
+                            (contains? (:tags-set node)
+                                       tag))))}))
+
+
   )
