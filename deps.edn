@@ -1,0 +1,6 @@
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.1"}
+        clj-kondo/clj-kondo {:mvn/version "2026.04.15"}}
+ :aliases {:run {:main-opts ["-m" "clojure-scope.core"]}
+           :test {:extra-paths ["test"]
+                  :main-opts ["-m" "clojure-scope.test-runner"]}}}
