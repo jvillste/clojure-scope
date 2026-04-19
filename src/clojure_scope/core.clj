@@ -178,17 +178,19 @@
                     "var-dependency-graph"))))
 
 (def tree-toggle-script
-  "document.addEventListener('click',function(event){const toggleButton=event.target.closest('button.tree-toggle');if(!toggleButton){return;}const treeNode=toggleButton.closest('li.tree-node');if(!treeNode){return;}const childList=Array.from(treeNode.children).find(function(element){return element.classList.contains('tree-children');});if(!childList){return;}const isCollapsed=childList.hasAttribute('hidden');if(isCollapsed){childList.removeAttribute('hidden');toggleButton.textContent='▾';toggleButton.setAttribute('aria-expanded','true');}else{childList.setAttribute('hidden','');toggleButton.textContent='▸';toggleButton.setAttribute('aria-expanded','false');}});")
+  "document.addEventListener('click',function(event){const toggleButton=event.target.closest('button.tree-toggle');if(!toggleButton){return;}const treeNode=toggleButton.closest('li.tree-node');if(!treeNode){return;}const childList=Array.from(treeNode.children).find(function(element){return element.classList.contains('tree-children');});if(!childList){return;}const toggleIcon=toggleButton.querySelector('.tree-toggle-icon');const isCollapsed=childList.hasAttribute('hidden');if(isCollapsed){childList.removeAttribute('hidden');if(toggleIcon){toggleIcon.textContent='▾';}toggleButton.setAttribute('aria-expanded','true');}else{childList.setAttribute('hidden','');if(toggleIcon){toggleIcon.textContent='▸';}toggleButton.setAttribute('aria-expanded','false');}});")
 
 (defn tree-node->hiccup [{:keys [namespace name cycle? children]}]
   [:li.tree-node
    [:div.tree-node-label
-    (when (seq children)
+    (if (seq children)
       [:button.tree-toggle {:type "button"
                             :aria-expanded "false"}
-       "▸"])
-    [:span.tree-node-name
-     (str namespace "/" name (when cycle? " (cycle)"))]]
+       [:span.tree-toggle-icon "▸"]
+       [:span.tree-node-name
+        (str namespace "/" name (when cycle? " (cycle)"))]]
+      [:span.tree-node-name
+       (str namespace "/" name (when cycle? " (cycle)"))])]
    (when (seq children)
      (into [:ul.tree-children {:hidden true}]
            (map tree-node->hiccup children)))])
@@ -202,7 +204,7 @@
        [:meta {:charset "utf-8"}]
        [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
        [:title "Clojure Scope Dependency Tree"]
-       [:style "body{font-family:system-ui,sans-serif;margin:24px;line-height:1.4} .tree-root,.tree-children{list-style:none;margin:0;padding-left:1.25rem} .tree-node{margin:.25rem 0} .tree-node-label{display:flex;align-items:center;gap:.35rem} .tree-toggle{border:0;background:none;cursor:pointer;padding:0;font:inherit} .tree-node-name{font-family:ui-monospace,monospace} .tree-children[hidden]{display:none}"]]
+       [:style "body{font-family:system-ui,sans-serif;margin:24px;line-height:1.4} .tree-root,.tree-children{list-style:none;margin:0;padding-left:1.25rem} .tree-node{margin:.25rem 0} .tree-node-label{display:flex;align-items:center;gap:.35rem} .tree-toggle{border:0;background:none;cursor:pointer;padding:0;font:inherit;display:inline-flex;align-items:center;gap:.35rem} .tree-node-name{font-family:ui-monospace,monospace} .tree-children[hidden]{display:none}"]]
       [:body
        [:main
         [:h1 "Clojure Scope Dependency Tree"]
@@ -217,7 +219,11 @@
   (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
                                    "demo.core"
                                    "a")
-                         "demo.core/a")))
+                         "<span class=\"tree-toggle-icon\">▸</span><span class=\"tree-node-name\">demo.core/a</span>"))
+  (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
+                                   "demo.core"
+                                   "b")
+                         "<span class=\"tree-node-name\">demo.core/b</span>")))
 
 (defn create-tree-html
   "creates a single html file that visualizes the dependency tree
