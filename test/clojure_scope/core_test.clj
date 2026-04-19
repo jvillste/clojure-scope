@@ -15,13 +15,16 @@
         source-file (io/file src-dir "core.clj")]
     (.mkdirs src-dir)
     (spit source-file
-          "(ns demo.core)\n(defn c [] 1)\n(defn b [] (c))\n(defn a [] (b) c)\n")
-    (let [{:keys [nodes edges]} (sut/var-dependency-graph (.getPath dir))]
-      (is (= [[ 'demo.core 'c]
-              ['demo.core 'b]
-              ['demo.core 'a]]
-             (mapv :id nodes)))
-      (is (= [{:from ['demo.core 'a] :to ['demo.core 'b] :type :call}
-              {:from ['demo.core 'a] :to ['demo.core 'c] :type :ref}
-              {:from ['demo.core 'b] :to ['demo.core 'c] :type :call}]
-             (mapv #(select-keys % [:from :to :type]) edges))))))
+          "(ns demo.core)
+           (defn c [] 1)
+           (defn b [] (c))
+           (defn a [] (b) c)")
+    (is (= {:edges
+            [{:from ["demo.core" "a"], :to ["demo.core" "b"]}
+             {:from ["demo.core" "a"], :to ["demo.core" "c"]}
+             {:from ["demo.core" "b"], :to ["demo.core" "c"]}],
+            :nodes
+            [{:name "a", :namespace "demo.core"}
+             {:name "b", :namespace "demo.core"}
+             {:name "c", :namespace "demo.core"}]}
+           (sut/var-dependency-graph (.getPath dir))))))

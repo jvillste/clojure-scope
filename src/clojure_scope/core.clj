@@ -1,6 +1,8 @@
 (ns clojure-scope.core
-  (:require [clj-kondo.core :as kondo]
-            [clojure.pprint :as pprint]))
+  (:require
+   [clj-kondo.core :as kondo]
+   [clojure.pprint :as pprint]
+   [clojure.test :refer [deftest is]]))
 
 (defn analyze-folder [folder]
   (:analysis (kondo/run! {:lint [folder]
@@ -12,8 +14,7 @@
 
 (defn node
   [{:keys [ns name filename row col end-row end-col defined-by] :as definition}]
-  {;; :id [ns name]
-   :namespace (str ns)
+  {:namespace (str ns)
    :name (str name)
    ;; :defined-by defined-by
    ;; :filename filename
@@ -44,7 +45,7 @@
                         (contains? definitions-by-id [ns name]))
         nodes (->> var-definitions
                    (map node)
-                   (sort-by (juxt :filename :row :col))
+                   (sort-by (juxt :namespace :name))
                    vec)
         edges (->> var-usages
                    (keep (fn [usage]
@@ -54,7 +55,8 @@
                                (when (and (internal-var? source-id)
                                           (internal-var? target-id))
                                  (edge usage))))))
-                   (sort-by (juxt :from :to :filename :row :col))
+                   (distinct)
+                   (sort-by (juxt :from :to))
                    vec)]
     {:nodes nodes
      :edges edges}))
@@ -67,8 +69,59 @@
         (System/exit 1)))
     (pprint/pprint (var-dependency-graph folder))))
 
+(defn tree-lines [edges namespace name]
+  (let [dependencies-by-var (reduce (fn [acc {:keys [from to]}]
+                                      (update acc from (fnil conj []) to))
+                                    {}
+                                    edges)
+        line-for (fn [var-id depth]
+                   (str (apply str (repeat (* 2 depth) " "))
+                        (str (first var-id) "/" (second var-id))))]
+    (letfn [(walk [var-id path depth]
+              (if (contains? path var-id)
+                [(str (line-for var-id depth) " (cycle)")]
+                (into [(line-for var-id depth)]
+                      (mapcat #(walk % (conj path var-id) (inc depth))
+                              (sort-by (juxt first second) (get dependencies-by-var var-id))))))]
+      (walk [namespace name] #{} 0))))
+
+(deftest test-tree-lines
+  (is (= ["clojure-scope.core/var-dependency-graph"
+          "  clojure-scope.core/analyze-folder"
+          "  clojure-scope.core/edge"
+          "  clojure-scope.core/node"
+          "  clojure-scope.core/var-id"]
+         (tree-lines [{:from ["clojure-scope.core" "-main"],
+                       :to ["clojure-scope.core" "var-dependency-graph"]}
+                      {:from ["clojure-scope.core" "print-tree"],
+                       :to ["clojure-scope.core" "tree-lines"]}
+                      {:from ["clojure-scope.core" "print-tree"],
+                       :to ["clojure-scope.core" "var-dependency-graph"]}
+                      {:from ["clojure-scope.core" "test-tree-lines"],
+                       :to ["clojure-scope.core" "tree-lines"]}
+                      {:from ["clojure-scope.core" "var-dependency-graph"],
+                       :to ["clojure-scope.core" "analyze-folder"]}
+                      {:from ["clojure-scope.core" "var-dependency-graph"],
+                       :to ["clojure-scope.core" "edge"]}
+                      {:from ["clojure-scope.core" "var-dependency-graph"],
+                       :to ["clojure-scope.core" "node"]}
+                      {:from ["clojure-scope.core" "var-dependency-graph"],
+                       :to ["clojure-scope.core" "var-id"]}]
+                     "clojure-scope.core"
+                     "var-dependency-graph"))))
+
+(defn print-tree
+  "prints a dependency tree starting from a given var"
+  [source-folder namespace name]
+  (doseq [line (tree-lines (:edges (var-dependency-graph source-folder))
+                           namespace name)]
+    (println line)))
+
 (comment
   (var-dependency-graph "src")
   (var-dependency-graph "/Users/jukka/google-drive/src/mappa/src")
+  (print-tree "/Users/jukka/google-drive/src/mappa/src"
+              "mappa.core"
+              "init-mappa")
 
   )
