@@ -13,7 +13,7 @@
 (defn node
   [{:keys [ns name filename row col end-row end-col defined-by] :as definition}]
   {;; :id [ns name]
-   :ns (str ns)
+   :namespace (str ns)
    :name (str name)
    ;; :defined-by defined-by
    ;; :filename filename
