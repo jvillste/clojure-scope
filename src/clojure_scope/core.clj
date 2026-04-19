@@ -206,7 +206,10 @@
                     "var-dependency-graph"))))
 
 (def tree-toggle-script
-  "document.addEventListener('click',function(event){const toggleButton=event.target.closest('button.tree-toggle,button.source-toggle');if(!toggleButton){return;}const treeNode=toggleButton.closest('li.tree-node');if(!treeNode){return;}const isSourceToggle=toggleButton.classList.contains('source-toggle');const childList=Array.from(treeNode.children).find(function(element){return isSourceToggle?element.classList.contains('tree-source'):element.classList.contains('tree-children');});if(!childList){return;}const toggleIcon=toggleButton.querySelector(isSourceToggle?'.source-toggle-icon':'.tree-toggle-icon');const isCollapsed=childList.hasAttribute('hidden');if(isCollapsed){childList.removeAttribute('hidden');if(toggleIcon){toggleIcon.textContent='▾';}toggleButton.setAttribute('aria-expanded','true');}else{childList.setAttribute('hidden','');if(toggleIcon){toggleIcon.textContent='▸';}toggleButton.setAttribute('aria-expanded','false');}});")
+  "function directChildByClass(treeNode,className){return Array.from(treeNode.children).find(function(element){return element.classList.contains(className);});}
+function setExpanded(button,childList,toggleIcon,expanded){if(expanded){childList.removeAttribute('hidden');if(toggleIcon){toggleIcon.textContent='▾';}button.setAttribute('aria-expanded','true');}else{childList.setAttribute('hidden','');if(toggleIcon){toggleIcon.textContent='▸';}button.setAttribute('aria-expanded','false');}}
+function setTreeNodeExpanded(treeNode,expanded){const toggleButton=treeNode.querySelector(':scope > .tree-node-label > button.tree-toggle');if(!toggleButton){return;}const childList=directChildByClass(treeNode,'tree-children');if(!childList){return;}const toggleIcon=toggleButton.querySelector('.tree-toggle-icon');setExpanded(toggleButton,childList,toggleIcon,expanded);}
+document.addEventListener('click',function(event){const toggleButton=event.target.closest('button.tree-toggle,button.source-toggle');if(!toggleButton){return;}const treeNode=toggleButton.closest('li.tree-node');if(!treeNode){return;}const treeNodeName=event.target.closest('.tree-node-name');if(event.shiftKey&&treeNodeName&&toggleButton.classList.contains('tree-toggle')){const childList=directChildByClass(treeNode,'tree-children');if(!childList){return;}const shouldExpand=childList.hasAttribute('hidden');setTreeNodeExpanded(treeNode,shouldExpand);childList.querySelectorAll('li.tree-node').forEach(function(descendantTreeNode){setTreeNodeExpanded(descendantTreeNode,shouldExpand);});return;}const isSourceToggle=toggleButton.classList.contains('source-toggle');const childList=directChildByClass(treeNode,isSourceToggle?'tree-source':'tree-children');if(!childList){return;}const toggleIcon=toggleButton.querySelector(isSourceToggle?'.source-toggle-icon':'.tree-toggle-icon');const isCollapsed=childList.hasAttribute('hidden');setExpanded(toggleButton,childList,toggleIcon,isCollapsed);});")
 
 (defn tree-node->hiccup
   ([node]
@@ -274,7 +277,12 @@
   (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
                                    "demo.core"
                                    "b")
-                         "<span class=\"tree-node-name\">demo.core/b</span>")))
+                         "<span class=\"tree-node-name\">demo.core/b</span>"))
+  (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}
+                                    {:from ["demo.core" "b"] :to ["demo.core" "c"]}]
+                                   "demo.core"
+                                   "a")
+                         "event.shiftKey&&treeNodeName&&toggleButton.classList.contains('tree-toggle')")))
 
 (defn create-tree-html
   "creates a single html file that visualizes the dependency tree
