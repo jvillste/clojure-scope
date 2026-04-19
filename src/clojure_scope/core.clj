@@ -82,7 +82,7 @@
                 [(str (line-for var-id depth) " (cycle)")]
                 (into [(line-for var-id depth)]
                       (mapcat #(walk % (conj path var-id) (inc depth))
-                              (sort-by (juxt first second) (get dependencies-by-var var-id))))))]
+                              (sort (get dependencies-by-var var-id))))))]
       (walk [namespace name] #{} 0))))
 
 (deftest test-tree-lines
@@ -116,6 +116,12 @@
   (doseq [line (tree-lines (:edges (var-dependency-graph source-folder))
                            namespace name)]
     (println line)))
+
+(defn create-tree-html
+  "creates a single html file that visualizes the dependency tree
+  starting from a given var. Each tree branch is closed by default,
+  but can be opended by clicking."
+  [source-folder namespace name html-file-name])
 
 (comment
   (var-dependency-graph "src")
