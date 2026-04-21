@@ -23,9 +23,13 @@
 (defn- extract-name [kind form]
   (let [name-form (second form)]
     (cond
-      (and (= kind "ns") (symbol? name-form)) (str name-form)
-      (and (contains? movable-kinds kind)
-           (symbol? name-form)) (str name-form)
+      (and (= kind "ns")
+           (symbol? name-form))
+      (str name-form)
+
+      (symbol? name-form)
+      (str name-form)
+
       :else nil)))
 
 (defn- fallback-kind [node]
@@ -70,9 +74,10 @@
            {:kind "map", :name nil, :start-line 6, :end-line 6}
            {:kind "defn", :name "hello", :start-line 7, :end-line 8}
            {:kind "defmacro", :name "foo", :start-line 9, :end-line 9}
-           {:kind "my-def", :name nil, :start-line 10, :end-line 10}
-           {:kind "defn", :name "top-level-nodes", :start-line 12, :end-line 14}
-           {:kind "defn-", :name "metadata-target-child", :start-line 16, :end-line 17})
+           {:kind "defonce", :name "foo", :start-line 10, :end-line 10}
+           {:kind "my-def", :name "foo", :start-line 11, :end-line 11}
+           {:kind "defn", :name "top-level-nodes", :start-line 13, :end-line 15}
+           {:kind "defn-", :name "metadata-target-child", :start-line 17, :end-line 18})
          (string-to-forms "
 (ns test (:require [foo.core :as foo]))
 []
@@ -82,6 +87,7 @@
 ^{:foo 1}
 (defn hello [])
 (defmacro foo [])
+(defonce foo (atom nil))
 (foo/my-def foo [])
 
 (defn top-level-nodes [root]

@@ -110,7 +110,7 @@
           {}
           edges))
 
-(defn transitive-closure
+(defn transitive-dependencies
   "returns all wars a given var depends on direclty and indirectly"
   [root-var edges]
   (let [dependency-map (dependencies-by-var edges)]
@@ -125,19 +125,19 @@
                  (conj result var-id)))
         result))))
 
-(deftest test-transitive-closure
+(deftest test-transitive-dependencies
   (is (= #{["namespace" "c"]
            ["namespace" "b"]
            ["namespace" "d"]}
-         (transitive-closure ["namespace" "a"]
-                             [{:from ["namespace" "a"],
-                               :to ["namespace" "b"]}
-                              {:from ["namespace" "b"],
-                               :to ["namespace" "c"]}
-                              {:from ["namespace" "b"],
-                               :to ["namespace" "d"]}
-                              {:from ["namespace" "e"],
-                               :to ["namespace" "a"]}]))))
+         (transitive-dependencies ["namespace" "a"]
+                                  [{:from ["namespace" "a"],
+                                    :to ["namespace" "b"]}
+                                   {:from ["namespace" "b"],
+                                    :to ["namespace" "c"]}
+                                   {:from ["namespace" "b"],
+                                    :to ["namespace" "d"]}
+                                   {:from ["namespace" "e"],
+                                    :to ["namespace" "a"]}]))))
 
 (defn sort-by-dependencies
   "orders nodes so that the ones that come last depend on the earlier
@@ -377,18 +377,20 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
       (let [{:keys [start-line end-line]} (first matches)]
         (line-region/copy-line-region source-file target-file start-line end-line target-line)))))
 
+(defn sorted-dependent-vars [a-var a-var-dependency-graph]
+  (sort-by-dependencies (conj (transitive-dependencies a-var
+                                                       (:edges a-var-dependency-graph))
+                              a-var)
+                        (:edges a-var-dependency-graph)))
+
+(defn line-count [path]
+  (with-open [rdr (io/reader path)]
+    (count (line-seq rdr))))
 
 (comment
-  (var-dependency-graph "src")
+  (sorted-dependent-vars ["clojure-scope.core" "sorted-dependent-vars"]
+                         (var-dependency-graph "src"))
 
-  (def the-var-dependency-graph (var-dependency-graph source-file-name))
-
-  (string-to-forms/string-to-forms (slurp source-file-name))
-
-  (sort-by-dependencies (conj (transitive-closure ["comparison-test" "run-tests"]
-                                                  (:edges the-var-dependency-graph))
-                              ["comparison-test" "run-tests"])
-                        (:edges the-var-dependency-graph))
 
   (var-dependency-graph "/Users/jukka/google-drive/src/mappa/src")
   (print-tree "/Users/jukka/google-drive/src/mappa/src"
