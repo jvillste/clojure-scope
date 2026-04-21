@@ -1,7 +1,7 @@
 (ns clojure-scope.core
   (:require
    [clj-kondo.core :as kondo]
-   [clojure-scope.move-line-region :as move-line-region]
+   [clojure-scope.line-region :as line-region]
    [clojure-scope.string-to-forms :as string-to-forms]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
@@ -364,7 +364,7 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
     (spit (io/file html-file-name)
           (tree-html edges namespace name (source-code-by-var-for-folder source-folder)))))
 
-(defn move-clojure-form [form-name source-file target-file target-line]
+(defn copy-clojure-form [form-name source-file target-file target-line]
   (let [matches (->> (string-to-forms/string-to-forms (slurp source-file))
                      (filter #(= form-name (:name %)))
                      vec)]
@@ -375,7 +375,7 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
                        :file source-file}))
 
       (let [{:keys [start-line end-line]} (first matches)]
-        (move-line-region/move-line-region source-file target-file start-line end-line target-line)))))
+        (line-region/copy-line-region source-file target-file start-line end-line target-line)))))
 
 
 (comment

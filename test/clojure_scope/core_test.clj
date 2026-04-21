@@ -47,13 +47,13 @@
 (defn- read-lines [path]
   (string/split-lines (slurp path)))
 
-(deftest move-clojure-form-moves-the-matching-top-level-form-to-the-target-line
+(deftest copy-clojure-form-copies-the-matching-top-level-form-to-the-target-line
   (let [dir (create-temp-dir)
         source-path (.getPath (io/file dir "source.clj"))
         target-path (.getPath (io/file dir "target.clj"))]
     (write-lines! source-path ["(ns example.source)"
                                "(def keep 1)"
-                               "(defn moved"
+                               "(defn copied"
                                "  []"
                                "  :ok)"
                                "(def after 2)"])
@@ -63,20 +63,23 @@
     (is (= {:source-first-line 3
             :source-last-line 5
             :target-line 2
-            :lines-moved 3}
-           (sut/move-clojure-form "moved" source-path target-path 2)))
+            :lines-copied 3}
+           (sut/copy-clojure-form "copied" source-path target-path 2)))
     (is (= ["(ns example.source)"
             "(def keep 1)"
+            "(defn copied"
+            "  []"
+            "  :ok)"
             "(def after 2)"]
            (read-lines source-path)))
     (is (= ["(ns example.target)"
-            "(defn moved"
+            "(defn copied"
             "  []"
             "  :ok)"
             "(def target 0)"]
            (read-lines target-path)))))
 
-(deftest move-clojure-form-errors-when-the-form-is-missing
+(deftest copy-clojure-form-errors-when-the-form-is-missing
   (let [dir (create-temp-dir)
         source-path (.getPath (io/file dir "source.clj"))
         target-path (.getPath (io/file dir "target.clj"))]
@@ -86,7 +89,7 @@
 
     (testing "missing form name"
       (let [ex (try
-                 (sut/move-clojure-form "missing" source-path target-path 2)
+                 (sut/copy-clojure-form "missing" source-path target-path 2)
                  nil
                  (catch clojure.lang.ExceptionInfo e
                    e))]
