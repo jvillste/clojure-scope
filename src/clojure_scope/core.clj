@@ -141,8 +141,30 @@
   "orders nodes so that the ones that come last depend on the earlier
   ones."
   [nodes dependencies]
-
-  )
+  (let [node-set (set nodes)
+        dependency-map (reduce (fn [dependency-map {:keys [from to]}]
+                                 (if (and (contains? node-set from)
+                                          (contains? node-set to))
+                                   (update dependency-map from (fnil conj #{}) to)
+                                   dependency-map))
+                               {}
+                               dependencies)]
+    (loop [remaining nodes
+           ordered []
+           ordered-set #{}]
+      (if (empty? remaining)
+        ordered
+        (if-let [next-node (some (fn [node]
+                                   (when (every? ordered-set
+                                                 (get dependency-map node))
+                                     node))
+                                 remaining)]
+          (recur (remove #(= % next-node) remaining)
+                 (conj ordered next-node)
+                 (conj ordered-set next-node))
+          (throw (ex-info "Cannot sort nodes with cyclic dependencies"
+                          {:nodes nodes
+                           :dependencies dependencies})))))))
 
 (deftest test-sort-by-dependencies
   (is (= [["namespace-1" "var-2"]
