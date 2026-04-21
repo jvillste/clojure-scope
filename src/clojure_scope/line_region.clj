@@ -65,3 +65,8 @@
        :source-last-line source-last-line
        :target-line target-line
        :lines-copied (count copied-lines)})))
+
+
+(defn insert-lines
+  "inserts given lines to the target file starting from the target line"
+  [target-file target-line lines])
