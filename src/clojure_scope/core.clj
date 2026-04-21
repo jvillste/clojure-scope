@@ -102,12 +102,31 @@
         (System/exit 1)))
     (pprint/pprint (var-dependency-graph folder))))
 
+(defn dependencies-by-var [edges]
+  (reduce (fn [acc {:keys [from to]}]
+            (update acc from (fnil conj []) to))
+          {}
+          edges))
+
 (defn transitive-closure
   "returns all wars a given var depends on direclty and indirectly"
-  [root-var edges])
+  [root-var edges]
+  (let [dependency-map (dependencies-by-var edges)]
+    (loop [pending (seq (get dependency-map root-var))
+           visited #{root-var}
+           result #{}]
+      (if-let [var-id (first pending)]
+        (if (contains? visited var-id)
+          (recur (rest pending) visited result)
+          (recur (into (rest pending) (get dependency-map var-id))
+                 (conj visited var-id)
+                 (conj result var-id)))
+        result))))
 
 (deftest test-transitive-closure
-  (is (= #{"b" "c" "d"}
+  (is (= #{["namespace" "c"]
+           ["namespace" "b"]
+           ["namespace" "d"]}
          (transitive-closure ["namespace" "a"]
                              [{:from ["namespace" "a"],
                                :to ["namespace" "b"]}
@@ -167,11 +186,6 @@
                            namespace name)]
     (println line)))
 
-(defn dependencies-by-var [edges]
-  (reduce (fn [acc {:keys [from to]}]
-            (update acc from (fnil conj []) to))
-          {}
-          edges))
 
 (defn tree-data
   [edges namespace name]
