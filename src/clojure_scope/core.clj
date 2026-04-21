@@ -137,6 +137,20 @@
                               {:from ["namespace" "e"],
                                :to ["namespace" "a"]}]))))
 
+(defn sort-by-dependencies
+  "orders nodes so that the ones that come last depend on the earlier
+  ones."
+  [nodes dependencies]
+
+  )
+
+(deftest test-sort-by-dependencies
+  (is (= [["namespace-1" "var-2"]
+          ["namespace-1" "var-1"]]
+         (sort-by-dependencies [["namespace-1" "var-1"]
+                                ["namespace-1" "var-2"]]
+                               [{:from ["namespace-1" "var-1"]
+                                 :to ["namespace-1" "var-2"]}]))))
 
 (defn tree-lines [edges namespace name]
   (let [dependencies-by-var (reduce (fn [acc {:keys [from to]}]
