@@ -1,9 +1,11 @@
 (ns clojure-scope.core-test
-  (:require [clojure-scope.core :as sut]
-            [clojure.java.io :as io]
-            [clojure.test :refer [deftest is]]))
+  (:require
+   [clojure-scope.core :as sut]
+   [clojure.java.io :as io]
+   [clojure.string :as string]
+   [clojure.test :refer [deftest is testing]]))
 
-(defn temp-dir []
+(defn create-temp-dir []
   (-> (java.nio.file.Files/createTempDirectory
        "clojure-scope-"
        (make-array java.nio.file.attribute.FileAttribute 0))
@@ -17,7 +19,7 @@
           "(ns demo.core)\n(defn c [] 1)\n(defn b [] (c))\n(defn a [] (b) c)")))
 
 (deftest var-dependency-graph-test
-  (let [dir (temp-dir)]
+  (let [dir (create-temp-dir)]
     (write-demo-source-file dir)
     (is (= {:nodes
             [{:namespace "demo.core", :name "a", :start-row 4, :end-row 4}
@@ -30,9 +32,62 @@
            (sut/var-dependency-graph (.getPath dir))))))
 
 (deftest source-code-by-var-for-folder-test
-  (let [dir (temp-dir)]
+  (let [dir (create-temp-dir)]
     (write-demo-source-file dir)
     (let [source-code-by-var (sut/source-code-by-var-for-folder (.getPath dir))]
       (is (= "(defn a [] (b) c)" (get source-code-by-var ["demo.core" "a"])))
       (is (= "(defn b [] (c))" (get source-code-by-var ["demo.core" "b"])))
       (is (= "(defn c [] 1)" (get source-code-by-var ["demo.core" "c"]))))))
+
+
+
+(defn- write-lines! [path lines]
+  (spit path (string/join "\n" lines)))
+
+(defn- read-lines [path]
+  (string/split-lines (slurp path)))
+
+(deftest move-clojure-form-moves-the-matching-top-level-form-to-the-target-line
+  (let [dir (create-temp-dir)
+        source-path (.getPath (io/file dir "source.clj"))
+        target-path (.getPath (io/file dir "target.clj"))]
+    (write-lines! source-path ["(ns example.source)"
+                               "(def keep 1)"
+                               "(defn moved"
+                               "  []"
+                               "  :ok)"
+                               "(def after 2)"])
+    (write-lines! target-path ["(ns example.target)"
+                               "(def target 0)"])
+
+    (is (= {:source-first-line 3
+            :source-last-line 5
+            :target-line 2
+            :lines-moved 3}
+           (sut/move-clojure-form "moved" source-path target-path 2)))
+    (is (= ["(ns example.source)"
+            "(def keep 1)"
+            "(def after 2)"]
+           (read-lines source-path)))
+    (is (= ["(ns example.target)"
+            "(defn moved"
+            "  []"
+            "  :ok)"
+            "(def target 0)"]
+           (read-lines target-path)))))
+
+(deftest move-clojure-form-errors-when-the-form-is-missing
+  (let [dir (create-temp-dir)
+        source-path (.getPath (io/file dir "source.clj"))
+        target-path (.getPath (io/file dir "target.clj"))]
+    (write-lines! source-path ["(ns example.source)"
+                               "(def present 1)"])
+    (write-lines! target-path ["(ns example.target)"])
+
+    (testing "missing form name"
+      (let [ex (try
+                 (sut/move-clojure-form "missing" source-path target-path 2)
+                 nil
+                 (catch clojure.lang.ExceptionInfo e
+                   e))]
+        (is (= :not-found (:type (ex-data ex))))))))

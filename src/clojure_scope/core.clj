@@ -1,6 +1,8 @@
 (ns clojure-scope.core
   (:require
    [clj-kondo.core :as kondo]
+   [clojure-scope.move-line-region :as move-line-region]
+   [clojure-scope.string-to-forms :as string-to-forms]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
    [clojure.pprint :as pprint]
@@ -362,8 +364,32 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
     (spit (io/file html-file-name)
           (tree-html edges namespace name (source-code-by-var-for-folder source-folder)))))
 
+(defn move-clojure-form [form-name source-file target-file target-line]
+  (let [matches (->> (string-to-forms/string-to-forms (slurp source-file))
+                     (filter #(= form-name (:name %)))
+                     vec)]
+    (if (empty? matches)
+      (throw (ex-info "Source form not found"
+                      {:type :not-found
+                       :form-name form-name
+                       :file source-file}))
+
+      (let [{:keys [start-line end-line]} (first matches)]
+        (move-line-region/move-line-region source-file target-file start-line end-line target-line)))))
+
+
 (comment
   (var-dependency-graph "src")
+
+  (def the-var-dependency-graph (var-dependency-graph source-file-name))
+
+  (string-to-forms/string-to-forms (slurp source-file-name))
+
+  (sort-by-dependencies (conj (transitive-closure ["comparison-test" "run-tests"]
+                                                  (:edges the-var-dependency-graph))
+                              ["comparison-test" "run-tests"])
+                        (:edges the-var-dependency-graph))
+
   (var-dependency-graph "/Users/jukka/google-drive/src/mappa/src")
   (print-tree "/Users/jukka/google-drive/src/mappa/src"
               "mappa.core"
@@ -414,11 +440,11 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
     (->>  nodes
           (sort-by (comp count :callers)))
     #_(for [tag (sort (distinct (mapcat :tags-set nodes)))]
-      {:tag tag
-       :vars (->> nodes
-                  (filter (fn [node]
-                            (contains? (:tags-set node)
-                                       tag))))}))
+        {:tag tag
+         :vars (->> nodes
+                    (filter (fn [node]
+                              (contains? (:tags-set node)
+                                         tag))))}))
 
 
   )
