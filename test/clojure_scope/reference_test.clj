@@ -24,11 +24,7 @@
                                   (str "(ns apple)\n"
                                        "\n"
                                        "(bar 1)\n"))]
-      (is (= (str "(ns apple)\n"
-                  "\n"
-                  "(bread/bar 1)\n")
-             (normalize-newlines
-               (reference/update-reference file 3 2 "bread" "bar"))))
+      (is (nil? (reference/update-reference file 3 2 "bread" "bar")))
       (is (= (str "(ns apple)\n"
                   "\n"
                   "(bread/bar 1)\n")
@@ -39,33 +35,33 @@
                                   (str "(ns crumb (:require [apple :as a]))\n"
                                        "\n"
                                        "(a/bar 1)\n"))]
+      (reference/update-reference file 3 2 "b" "bar")
       (is (= (str "(ns crumb (:require [apple :as a]))\n"
                   "\n"
                   "(b/bar 1)\n")
-             (normalize-newlines
-               (reference/update-reference file 3 2 "b" "bar"))))))
+             (read-file file)))))
 
   (testing "rewrites a fully-qualified namespace reference"
     (let [file (create-temp-file! "crumb.clj"
                                   (str "(ns crumb)\n"
                                        "\n"
                                        "(apple/bar 1)\n"))]
+      (reference/update-reference file 3 2 "bread" "bar")
       (is (= (str "(ns crumb)\n"
                   "\n"
                   "(bread/bar 1)\n")
-             (normalize-newlines
-               (reference/update-reference file 3 2 "bread" "bar"))))))
+             (read-file file)))))
 
   (testing "can make a reference unqualified"
     (let [file (create-temp-file! "crumb.clj"
                                   (str "(ns crumb)\n"
                                        "\n"
                                        "(bread/bar 1)\n"))]
+      (reference/update-reference file 3 2 nil "bar")
       (is (= (str "(ns crumb)\n"
                   "\n"
                   "(bar 1)\n")
-             (normalize-newlines
-               (reference/update-reference file 3 2 nil "bar"))))))
+             (read-file file)))))
 
   (testing "fails when no symbol exists at the given position"
     (let [file (create-temp-file! "crumb.clj"

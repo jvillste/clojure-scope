@@ -53,9 +53,7 @@
   "Changes the var reference at LINE and COLUMN in FILE-NAME to use the given
   namespace alias and name. LINE and COLUMN are expected to be 1-based.
 
-  If NEW-NAMESPACE-ALIAS is nil, the reference becomes unqualified.
-
-  Returns the updated file contents."
+  If NEW-NAMESPACE-ALIAS is nil, the reference becomes unqualified."
   [file-name line column new-namespace-alias new-name]
   (let [^java.io.File file (io/file file-name)
         updated-file-contents (rewrite-reference (slurp file)
@@ -63,8 +61,7 @@
                                                  column
                                                  new-namespace-alias
                                                  new-name)]
-    (spit file updated-file-contents)
-    updated-file-contents))
+    (spit file updated-file-contents)))
 
 (defn namespace-alias-form [namespace alias]
   [(symbol (str namespace)) :as (symbol (str alias))])
