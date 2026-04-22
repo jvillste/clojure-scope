@@ -69,4 +69,25 @@
 
 (defn insert-lines
   "inserts given lines to the target file starting from the target line"
-  [target-file target-line lines])
+  [target-file target-line lines]
+  (let [target-lines (read-file-lines target-file)
+        target-count (count target-lines)]
+    (when (< target-line 1)
+      (throw (ex-info (format "%d is out of range (1-%d)" target-line (inc target-count))
+                      {:type :invalid-target-line
+                       :target-line target-line
+                       :max (inc target-count)})))
+    (when (> target-line (inc target-count))
+      (throw (ex-info (format "%d is out of range (1-%d)" target-line (inc target-count))
+                      {:type :invalid-target-line
+                       :target-line target-line
+                       :max (inc target-count)})))
+
+    (write-file-lines! target-file
+                       (vec (concat
+                             (take (dec target-line) target-lines)
+                             lines
+                             (drop (dec target-line) target-lines))))
+
+    {:target-line target-line
+     :lines-inserted (count lines)}))

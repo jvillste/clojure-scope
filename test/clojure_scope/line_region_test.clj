@@ -77,3 +77,45 @@
                  (catch clojure.lang.ExceptionInfo e
                    e))]
         (is (= :invalid-target-line (:type (ex-data ex))))))))
+
+(deftest insert-lines-inserts-into-target-file
+  (let [dir (create-temp-dir)
+        target-path (.getPath (io/file dir "target.txt"))]
+    (write-lines! target-path ["x" "y"])
+
+    (is (= {:target-line 2
+            :lines-inserted 2}
+           (line-region/insert-lines target-path 2 ["a" "b"])))
+    (is (= ["x" "a" "b" "y"]
+           (read-lines target-path)))))
+
+(deftest insert-lines-creates-missing-target-file-and-parent-directories
+  (let [dir (create-temp-dir)
+        target-file (io/file dir "nested" "target.txt")
+        target-path (.getPath target-file)]
+    (line-region/insert-lines target-path 1 ["a" "b"])
+
+    (is (.exists target-file))
+    (is (= ["a" "b"]
+           (read-lines target-path)))))
+
+(deftest insert-lines-validates-target-line
+  (let [dir (create-temp-dir)
+        target-path (.getPath (io/file dir "target.txt"))]
+    (write-lines! target-path ["x"])
+
+    (testing "target line must be at least 1"
+      (let [ex (try
+                 (line-region/insert-lines target-path 0 ["a"])
+                 nil
+                 (catch clojure.lang.ExceptionInfo e
+                   e))]
+        (is (= :invalid-target-line (:type (ex-data ex))))))
+
+    (testing "target line must not exceed the last insertion point"
+      (let [ex (try
+                 (line-region/insert-lines target-path 3 ["a"])
+                 nil
+                 (catch clojure.lang.ExceptionInfo e
+                   e))]
+        (is (= :invalid-target-line (:type (ex-data ex))))))))
