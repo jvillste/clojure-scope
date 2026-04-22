@@ -13,33 +13,6 @@
     (.mkdirs (.getParentFile file))
     (spit file (str/join \newline lines))))
 
-(defn copy-line-region [source-file target-file source-first-line source-last-line target-line]
-  (let [lines (read-file-lines source-file)
-        num-lines (count lines)]
-
-    (assert (>= source-first-line 1))
-    (assert (<= source-first-line num-lines))
-    (assert (>= source-last-line source-first-line))
-    (assert (<= source-last-line num-lines))
-
-    (let [copied-lines (subvec (vec lines) (dec source-first-line) source-last-line)
-          target-lines (read-file-lines target-file)
-          target-count (count target-lines)]
-      (assert (>= target-line 1))
-      (assert (<= target-line (inc target-count)))
-
-      (write-file-lines! target-file
-                         (vec (concat
-                               (take (dec target-line) target-lines)
-                               copied-lines
-                               (drop (dec target-line) target-lines))))
-
-      {:source-first-line source-first-line
-       :source-last-line source-last-line
-       :target-line target-line
-       :lines-copied (count copied-lines)})))
-
-
 (defn insert-lines
   "inserts given lines to the target file starting from the target line"
   [target-file target-line lines]
@@ -57,3 +30,19 @@
 
     {:target-line target-line
      :lines-inserted (count lines)}))
+
+(defn copy-line-region [source-file target-file source-first-line source-last-line target-line]
+  (let [lines (read-file-lines source-file)
+        num-lines (count lines)]
+
+    (assert (>= source-first-line 1))
+    (assert (<= source-first-line num-lines))
+    (assert (>= source-last-line source-first-line))
+    (assert (<= source-last-line num-lines))
+
+    (let [copied-lines (subvec (vec lines) (dec source-first-line) source-last-line)]
+      (insert-lines target-file target-line copied-lines)
+      {:source-first-line source-first-line
+       :source-last-line source-last-line
+       :target-line target-line
+       :lines-copied (count copied-lines)})))
