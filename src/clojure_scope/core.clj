@@ -38,9 +38,10 @@
          (sort-by (juxt :namespace :name))
          vec)))
 
-(defn- dependency [{:keys [from from-var to name row col]}]
+(defn- dependency [{:keys [from from-var to name row col filename]}]
   {:dependent [(str from) (str from-var)]
    :dependency [(str to) (str name)]
+   :file-name filename
    :line row
    :column col})
 

@@ -25,7 +25,9 @@
     (is (= [{:dependent ["demo.core" "a"], :dependency ["demo.core" "b"], :line 4, :column 12}
             {:dependent ["demo.core" "a"], :dependency ["demo.core" "c"], :line 4, :column 16}
             {:dependent ["demo.core" "b"], :dependency ["demo.core" "c"], :line 3, :column 12}]
-           (sut/var-dependencies (.getPath dir))))))
+           (map (fn [dependency]
+                  (dissoc dependency :file-name))
+                (sut/var-dependencies (.getPath dir)))))))
 
 (deftest source-code-by-var-for-folder-test
   (let [dir (create-temp-dir)]
