@@ -22,7 +22,7 @@
   [{:keys [ns name filename row col end-row end-col defined-by] :as definition}]
   {:namespace (str ns)
    :name (str name)
-   ;; :defined-by defined-by
+   :defined-by (str defined-by)
    ;; :filename filename
    :start-line row
    ;; :col col
