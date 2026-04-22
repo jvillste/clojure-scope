@@ -43,8 +43,8 @@
    ;; :usage usage
    })
 
-(defn var-dependency-graph [folder]
-  (let [{:keys [var-definitions var-usages]} (analyze-folder folder)
+(defn var-dependency-graph [file-or-folder]
+  (let [{:keys [var-definitions var-usages]} (analyze-folder file-or-folder)
         definitions-by-id (into {}
                                 (map (juxt var-id identity))
                                 var-definitions)
