@@ -1,5 +1,6 @@
 (ns clojure-scope.core-test
   (:require
+   [clojure-scope.call-tree :as call-tree]
    [clojure-scope.core :as sut]
    [clojure.java.io :as io]
    [clojure.string :as string]
@@ -29,7 +30,7 @@
 (deftest source-code-by-var-for-folder-test
   (let [dir (create-temp-dir)]
     (write-demo-source-file dir)
-    (let [source-code-by-var (sut/source-code-by-var-for-folder (.getPath dir))]
+    (let [source-code-by-var (call-tree/source-code-by-var-for-folder (.getPath dir))]
       (is (= "(defn a [] (b) c)" (get source-code-by-var ["demo.core" "a"])))
       (is (= "(defn b [] (c))" (get source-code-by-var ["demo.core" "b"])))
       (is (= "(defn c [] 1)" (get source-code-by-var ["demo.core" "c"]))))))
