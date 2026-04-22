@@ -66,4 +66,61 @@
     (spit file updated-file-contents)
     updated-file-contents))
 
-(defn add-namespace-alias [file-name namespace alias])
+(defn namespace-alias-form [namespace alias]
+  [(symbol (str namespace)) :as (symbol (str alias))])
+
+(defn require-clause-form [namespace alias]
+  (list :require (namespace-alias-form namespace alias)))
+
+(defn ns-form-location [root-location]
+  (loop [location root-location]
+    (cond
+      (nil? location)
+      nil
+
+      (zip/end? location)
+      nil
+
+      (and (zip/sexpr-able? location)
+           (seq? (zip/sexpr location))
+           (= 'ns (first (zip/sexpr location))))
+      location
+
+      :else
+      (recur (zip/next location)))))
+
+(defn require-clause-location [ns-location]
+  (loop [location (-> ns-location zip/down zip/right)]
+    (cond
+      (nil? location)
+      nil
+
+      (and (zip/sexpr-able? location)
+           (seq? (zip/sexpr location))
+           (= :require (first (zip/sexpr location))))
+      location
+
+      :else
+      (recur (zip/right location)))))
+
+(defn rewrite-namespace-alias [file-contents namespace alias]
+  (let [root-location (zip/of-string file-contents)
+        ns-location (or (ns-form-location root-location)
+                        (throw (ex-info "Could not find ns form."
+                                        {})))]
+    (if-let [require-location (require-clause-location ns-location)]
+      (zip/root-string (-> require-location
+                           zip/down
+                           zip/rightmost
+                           (zip/insert-right (namespace-alias-form namespace alias))
+                           zip/up))
+      (zip/root-string (-> ns-location
+                           zip/down
+                           zip/rightmost
+                           (zip/insert-right (require-clause-form namespace alias))
+                           zip/up)))))
+
+(defn add-namespace-alias [file-name namespace alias]
+  (spit file-name (rewrite-namespace-alias (slurp file-name)
+                                           namespace
+                                           alias)))

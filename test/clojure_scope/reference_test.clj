@@ -76,3 +76,30 @@
             clojure.lang.ExceptionInfo
             #"Could not find symbol reference"
             (reference/update-reference file 3 12 "bread" "bar"))))))
+
+(deftest add-namespace-alias-test
+  (testing "adds a require clause when the ns form has none"
+    (let [file (create-temp-file! "apple.clj"
+                                  (str "(ns apple)\n"
+                                       "\n"
+                                       "(def value 1)\n"))]
+      (reference/add-namespace-alias file "bread" "b")
+      (is (= (str "(ns apple (:require [bread :as b]))\n"
+                  "\n"
+                  "(def value 1)\n")
+             (read-file file)))))
+
+  (testing "adds a namespace alias to an existing require clause"
+    (let [file (create-temp-file! "apple.clj"
+                                  (str "(ns apple\n"
+                                       "  (:require [crumb :as c]))\n"
+                                       "\n"
+                                       "(def value 1)\n"))]
+
+      (reference/add-namespace-alias file "bread" "b")
+
+      (is (= (str "(ns apple\n"
+                  "  (:require [crumb :as c] [bread :as b]))\n"
+                  "\n"
+                  "(def value 1)\n")
+             (read-file file))))))
