@@ -5,7 +5,10 @@
 (defn- read-file-lines [path]
   (let [file (io/file path)]
     (if (.exists file)
-      (str/split-lines (slurp file))
+      (let [content (slurp file)]
+        (if (empty? content)
+          []
+          (str/split-lines content)))
       [])))
 
 (defn- write-file-lines! [path lines]
@@ -30,6 +33,23 @@
 
     {:target-line target-line
      :lines-inserted (count lines)}))
+
+(defn delete-line-region [file first-line last-line]
+  (let [lines (read-file-lines file)
+        num-lines (count lines)]
+
+    (assert (>= first-line 1))
+    (assert (<= first-line num-lines))
+    (assert (>= last-line first-line))
+    (assert (<= last-line num-lines))
+
+    (write-file-lines! file
+                       (vec (concat (take (dec first-line) lines)
+                                    (drop last-line lines))))
+
+    {:first-line first-line
+     :last-line last-line
+     :lines-deleted (inc (- last-line first-line))}))
 
 (defn copy-line-region [source-file target-file source-first-line source-last-line target-line]
   (let [lines (read-file-lines source-file)

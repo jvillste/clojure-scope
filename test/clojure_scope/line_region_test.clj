@@ -16,7 +16,10 @@
 (defn- read-lines [path]
   (let [file (io/file path)]
     (if (.exists file)
-      (str/split-lines (slurp file))
+      (let [content (slurp file)]
+        (if (empty? content)
+          []
+          (str/split-lines content)))
       [])))
 
 (deftest copy-line-region-keeps-lines-in-source
@@ -99,3 +102,68 @@
     (testing "target line must not exceed the last insertion point"
       (is (thrown? AssertionError
                    (line-region/insert-lines target-path 3 ["a"]))))))
+
+(deftest delete-line-region-deletes-lines-in-range
+  (let [dir (create-temp-dir)
+        path (.getPath (io/file dir "file.txt"))]
+    (write-lines! path ["a" "b" "c" "d"])
+
+    (is (= {:first-line 2
+            :last-line 3
+            :lines-deleted 2}
+           (line-region/delete-line-region path 2 3)))
+    (is (= ["a" "d"] (read-lines path)))))
+
+(deftest delete-line-region-deletes-first-line
+  (let [dir (create-temp-dir)
+        path (.getPath (io/file dir "file.txt"))]
+    (write-lines! path ["a" "b" "c"])
+
+    (is (= {:first-line 1
+            :last-line 1
+            :lines-deleted 1}
+           (line-region/delete-line-region path 1 1)))
+    (is (= ["b" "c"] (read-lines path)))))
+
+(deftest delete-line-region-deletes-last-line
+  (let [dir (create-temp-dir)
+        path (.getPath (io/file dir "file.txt"))]
+    (write-lines! path ["a" "b" "c"])
+
+    (is (= {:first-line 3
+            :last-line 3
+            :lines-deleted 1}
+           (line-region/delete-line-region path 3 3)))
+    (is (= ["a" "b"] (read-lines path)))))
+
+(deftest delete-line-region-deletes-all-lines
+  (let [dir (create-temp-dir)
+        path (.getPath (io/file dir "file.txt"))]
+    (write-lines! path ["a" "b" "c"])
+
+    (is (= {:first-line 1
+            :last-line 3
+            :lines-deleted 3}
+           (line-region/delete-line-region path 1 3)))
+    (is (= [] (read-lines path)))))
+
+(deftest delete-line-region-validates-line-ranges
+  (let [dir (create-temp-dir)
+        path (.getPath (io/file dir "file.txt"))]
+    (write-lines! path ["a" "b"])
+
+    (testing "first line must be at least 1"
+      (is (thrown? AssertionError
+                   (line-region/delete-line-region path 0 1))))
+
+    (testing "first line must not exceed last line"
+      (is (thrown? AssertionError
+                   (line-region/delete-line-region path 2 1))))
+
+    (testing "first line must not exceed file length"
+      (is (thrown? AssertionError
+                   (line-region/delete-line-region path 3 4))))
+
+    (testing "last line must not exceed file length"
+      (is (thrown? AssertionError
+                   (line-region/delete-line-region path 1 3))))))
