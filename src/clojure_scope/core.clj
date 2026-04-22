@@ -69,6 +69,31 @@
     {:nodes nodes
      :edges edges}))
 
+(defn- dependency [{:keys [from from-var to name row col]}]
+  {:dependent [(str from) (str from-var)]
+   :dependency [(str to) (str name)]
+   :line row
+   :column col})
+
+(defn var-dependencies [file-or-folder]
+  (let [{:keys [var-definitions var-usages]} (analyze-folder file-or-folder)
+        definitions-by-id (into {}
+                                (map (juxt var-id identity))
+                                var-definitions)
+        internal-var? (fn [[ns name]]
+                        (contains? definitions-by-id [ns name]))]
+    (->> var-usages
+         (keep (fn [usage]
+                 (when-let [source-var (:from-var usage)]
+                   (let [source-id [(str (:from usage)) (str source-var)]
+                         target-id [(str (:to usage)) (str (:name usage))]]
+                     (when (and (internal-var? source-id)
+                                (internal-var? target-id))
+                       (dependency usage))))))
+         (distinct)
+         (sort-by (juxt :dependent :dependency))
+         vec)))
+
 (defn definition-source [source-folder {:keys [filename row end-row]}]
   (when (and filename row)
     (let [file-path (let [file (io/file filename)]
@@ -105,11 +130,11 @@
         (System/exit 1)))
     (pprint/pprint (var-dependency-graph folder))))
 
-(defn dependencies-by-var [edges]
-  (reduce (fn [acc {:keys [from to]}]
-            (update acc from (fnil conj []) to))
+(defn dependencies-by-var [dependencies]
+  (reduce (fn [acc {:keys [dependent dependency]}]
+            (update acc dependent (fnil conj []) dependency))
           {}
-          edges))
+          dependencies))
 
 (defn transitive-dependencies
   "returns all wars a given var depends on direclty and indirectly"
@@ -131,14 +156,14 @@
            ["namespace" "b"]
            ["namespace" "d"]}
          (transitive-dependencies ["namespace" "a"]
-                                  [{:from ["namespace" "a"],
-                                    :to ["namespace" "b"]}
-                                   {:from ["namespace" "b"],
-                                    :to ["namespace" "c"]}
-                                   {:from ["namespace" "b"],
-                                    :to ["namespace" "d"]}
-                                   {:from ["namespace" "e"],
-                                    :to ["namespace" "a"]}]))))
+                                  [{:dependent ["namespace" "a"],
+                                    :dependency ["namespace" "b"]}
+                                   {:dependent ["namespace" "b"],
+                                    :dependency ["namespace" "c"]}
+                                   {:dependent ["namespace" "b"],
+                                    :dependency ["namespace" "d"]}
+                                   {:dependent ["namespace" "e"],
+                                    :dependency ["namespace" "a"]}]))))
 
 (defn sort-by-dependencies
   "orders nodes so that the ones that come last depend on the earlier
@@ -177,11 +202,8 @@
                                [{:from ["namespace-1" "var-1"]
                                  :to ["namespace-1" "var-2"]}]))))
 
-(defn tree-lines [edges namespace name]
-  (let [dependencies-by-var (reduce (fn [acc {:keys [from to]}]
-                                      (update acc from (fnil conj []) to))
-                                    {}
-                                    edges)
+(defn tree-lines [dependencies namespace name]
+  (let [dependencies-by-var (dependencies-by-var dependencies)
         line-for (fn [var-id depth]
                    (str (apply str (repeat (* 2 depth) " "))
                         (str (first var-id) "/" (second var-id))))]
@@ -199,22 +221,22 @@
           "  clojure-scope.core/edge"
           "  clojure-scope.core/node"
           "  clojure-scope.core/var-id"]
-         (tree-lines [{:from ["clojure-scope.core" "-main"],
-                       :to ["clojure-scope.core" "var-dependency-graph"]}
-                      {:from ["clojure-scope.core" "print-tree"],
-                       :to ["clojure-scope.core" "tree-lines"]}
-                      {:from ["clojure-scope.core" "print-tree"],
-                       :to ["clojure-scope.core" "var-dependency-graph"]}
-                      {:from ["clojure-scope.core" "test-tree-lines"],
-                       :to ["clojure-scope.core" "tree-lines"]}
-                      {:from ["clojure-scope.core" "var-dependency-graph"],
-                       :to ["clojure-scope.core" "analyze-folder"]}
-                      {:from ["clojure-scope.core" "var-dependency-graph"],
-                       :to ["clojure-scope.core" "edge"]}
-                      {:from ["clojure-scope.core" "var-dependency-graph"],
-                       :to ["clojure-scope.core" "node"]}
-                      {:from ["clojure-scope.core" "var-dependency-graph"],
-                       :to ["clojure-scope.core" "var-id"]}]
+         (tree-lines [{:dependent  ["clojure-scope.core" "-main"],
+                       :dependency ["clojure-scope.core" "var-dependency-graph"]}
+                      {:dependent  ["clojure-scope.core" "print-tree"],
+                       :dependency ["clojure-scope.core" "tree-lines"]}
+                      {:dependent  ["clojure-scope.core" "print-tree"],
+                       :dependency ["clojure-scope.core" "var-dependency-graph"]}
+                      {:dependent  ["clojure-scope.core" "test-tree-lines"],
+                       :dependency ["clojure-scope.core" "tree-lines"]}
+                      {:dependent  ["clojure-scope.core" "var-dependency-graph"],
+                       :dependency ["clojure-scope.core" "analyze-folder"]}
+                      {:dependent  ["clojure-scope.core" "var-dependency-graph"],
+                       :dependency ["clojure-scope.core" "edge"]}
+                      {:dependent  ["clojure-scope.core" "var-dependency-graph"],
+                       :dependency ["clojure-scope.core" "node"]}
+                      {:dependent  ["clojure-scope.core" "var-dependency-graph"],
+                       :dependency ["clojure-scope.core" "var-id"]}]
                      "clojure-scope.core"
                      "var-dependency-graph"))))
 
@@ -258,22 +280,22 @@
                      {:namespace "clojure-scope.core"
                       :name "var-id"
                       :children []}]}
-         (tree-data [{:from ["clojure-scope.core" "-main"]
-                      :to ["clojure-scope.core" "var-dependency-graph"]}
-                     {:from ["clojure-scope.core" "print-tree"]
-                      :to ["clojure-scope.core" "tree-lines"]}
-                     {:from ["clojure-scope.core" "print-tree"]
-                      :to ["clojure-scope.core" "var-dependency-graph"]}
-                     {:from ["clojure-scope.core" "test-tree-lines"]
-                      :to ["clojure-scope.core" "tree-lines"]}
-                     {:from ["clojure-scope.core" "var-dependency-graph"]
-                      :to ["clojure-scope.core" "analyze-folder"]}
-                     {:from ["clojure-scope.core" "var-dependency-graph"]
-                      :to ["clojure-scope.core" "edge"]}
-                     {:from ["clojure-scope.core" "var-dependency-graph"]
-                      :to ["clojure-scope.core" "node"]}
-                     {:from ["clojure-scope.core" "var-dependency-graph"]
-                      :to ["clojure-scope.core" "var-id"]}]
+         (tree-data [{:dependent ["clojure-scope.core" "-main"]
+                      :dependency ["clojure-scope.core" "var-dependency-graph"]}
+                     {:dependent ["clojure-scope.core" "print-tree"]
+                      :dependency ["clojure-scope.core" "tree-lines"]}
+                     {:dependent ["clojure-scope.core" "print-tree"]
+                      :dependency ["clojure-scope.core" "var-dependency-graph"]}
+                     {:dependent ["clojure-scope.core" "test-tree-lines"]
+                      :dependency ["clojure-scope.core" "tree-lines"]}
+                     {:dependent ["clojure-scope.core" "var-dependency-graph"]
+                      :dependency ["clojure-scope.core" "analyze-folder"]}
+                     {:dependent ["clojure-scope.core" "var-dependency-graph"]
+                      :dependency ["clojure-scope.core" "edge"]}
+                     {:dependent ["clojure-scope.core" "var-dependency-graph"]
+                      :dependency ["clojure-scope.core" "node"]}
+                     {:dependent ["clojure-scope.core" "var-dependency-graph"]
+                      :dependency ["clojure-scope.core" "var-id"]}]
                     "clojure-scope.core"
                     "var-dependency-graph"))))
 
@@ -328,11 +350,11 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
        [:script tree-toggle-script]]))))
 
 (deftest test-tree-html
-  (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
+  (is (string/includes? (tree-html [{:dependent ["demo.core" "a"] :dependency ["demo.core" "b"]}]
                                    "demo.core"
                                    "a")
                         "button.tree-toggle"))
-  (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
+  (is (string/includes? (tree-html [{:dependent ["demo.core" "a"] :dependency ["demo.core" "b"]}]
                                    "demo.core"
                                    "a")
                         "<span class=\"tree-toggle-icon\">▸</span><span class=\"tree-node-name\">demo.core/a</span>"))
@@ -346,12 +368,12 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
                                    "a"
                                    {["demo.core" "a"] "(defn a [] :ok)"})
                         "(defn a [] :ok)"))
-  (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}]
+  (is (string/includes? (tree-html [{:dependent ["demo.core" "a"] :dependency ["demo.core" "b"]}]
                                    "demo.core"
                                    "b")
                         "<span class=\"tree-node-name\">demo.core/b</span>"))
-  (is (string/includes? (tree-html [{:from ["demo.core" "a"] :to ["demo.core" "b"]}
-                                    {:from ["demo.core" "b"] :to ["demo.core" "c"]}]
+  (is (string/includes? (tree-html [{:dependent ["demo.core" "a"] :dependency ["demo.core" "b"]}
+                                    {:dependent ["demo.core" "b"] :dependency ["demo.core" "c"]}]
                                    "demo.core"
                                    "a")
                         "event.shiftKey&&treeNodeName&&toggleButton.classList.contains('tree-toggle')")))
@@ -378,33 +400,63 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
       (let [{:keys [start-line end-line]} (first matches)]
         (line-region/copy-line-region source-file target-file start-line end-line target-line)))))
 
-(defn sorted-dependencies [var-dependency-graph a-var]
+(defn sorted-dependencies [var-dependencies a-var]
   (sort-by-dependencies (conj (transitive-dependencies a-var
-                                                       (:edges var-dependency-graph))
+                                                       var-dependencies)
                               a-var)
-                        (:edges var-dependency-graph)))
+                        var-dependencies))
 
 (defn line-count [path]
   (with-open [rdr (io/reader path)]
     (count (line-seq rdr))))
 
 (defn independent-vars
-  "filter out vars that are required only by vars in the given var sequence"
-  [var-dependency-graph vars]
+  "filter out vars that are required only by vars in the given var
+  sequence"
+  [var-dependencies vars]
   (let [var-set (set vars)]
-    (->> vars
-         (filter (fn [dependency]
-                   (->> (:edges var-dependency-graph)
-                        (filter (comp #{dependency} :to))
-                        (map :from)
-                        (remove var-set)
-                        (empty?)))))))
+    (filter (fn [dependency]
+              (->> var-dependencies
+                   (filter (comp #{dependency} :dependency))
+                   (map :dependent)
+                   (remove var-set)
+                   (empty?)))
+            vars)))
 
 (defn entangled-vars
   "filter out vars that are required also by other vars than the given vars"
   [var-dependency-graph vars]
   (set/difference (set vars)
-                  (independent-vars var-dependency-graph vars)))
+                  (set (independent-vars var-dependency-graph vars))))
+
+(deftest test-entangled-vars
+  (is (= #{}
+         (entangled-vars [] ["ns" "a"])))
+
+
+
+  (is (= #{}
+         (entangled-vars [{:dependent ["ns" "a"]
+                           :dependency ["ns" "b"]}]
+                         [["ns" "a"]
+                          ["ns" "b"]])))
+
+  (is (= #{}
+         (entangled-vars [{:dependent ["ns" "a"]
+                           :dependency ["ns" "b"]}]
+                         [])))
+
+  (is (= #{["ns" "b"]}
+         (entangled-vars [{:dependent ["other-ns" "a"]
+                           :dependency ["ns" "b"]}]
+                         [["ns" "b"]])))
+
+  (is (= #{["ns" "b"]}
+         (entangled-vars [{:dependent ["other-ns" "x"]
+                           :dependency ["ns" "b"]}
+                          {:dependent ["ns" "a"]
+                           :dependency ["ns" "b"]}]
+                         [["ns" "b"]]))))
 
 (comment
   (sorted-dependencies (var-dependency-graph "src")
