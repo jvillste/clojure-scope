@@ -65,3 +65,5 @@
                                                  new-name)]
     (spit file updated-file-contents)
     updated-file-contents))
+
+(defn add-namespace-alias [file-name namespace alias])
