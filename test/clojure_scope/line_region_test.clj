@@ -55,28 +55,16 @@
     (write-lines! target-path ["x"])
 
     (testing "source first line must be within the source file"
-      (let [ex (try
-                 (line-region/copy-line-region source-path target-path 0 1 1)
-                 nil
-                 (catch clojure.lang.ExceptionInfo e
-                   e))]
-        (is (= :invalid-source-first-line (:type (ex-data ex))))))
+      (is (thrown? AssertionError
+                   (line-region/copy-line-region source-path target-path 0 1 1))))
 
     (testing "source last line must not exceed the source file"
-      (let [ex (try
-                 (line-region/copy-line-region source-path target-path 1 3 1)
-                 nil
-                 (catch clojure.lang.ExceptionInfo e
-                   e))]
-        (is (= :invalid-source-last-line (:type (ex-data ex))))))
+      (is (thrown? AssertionError
+                   (line-region/copy-line-region source-path target-path 1 3 1))))
 
     (testing "target line must be a valid insertion point"
-      (let [ex (try
-                 (line-region/copy-line-region source-path target-path 1 1 0)
-                 nil
-                 (catch clojure.lang.ExceptionInfo e
-                   e))]
-        (is (= :invalid-target-line (:type (ex-data ex))))))))
+      (is (thrown? AssertionError
+                   (line-region/copy-line-region source-path target-path 1 1 0))))))
 
 (deftest insert-lines-inserts-into-target-file
   (let [dir (create-temp-dir)
@@ -105,17 +93,9 @@
     (write-lines! target-path ["x"])
 
     (testing "target line must be at least 1"
-      (let [ex (try
-                 (line-region/insert-lines target-path 0 ["a"])
-                 nil
-                 (catch clojure.lang.ExceptionInfo e
-                   e))]
-        (is (= :invalid-target-line (:type (ex-data ex))))))
+      (is (thrown? AssertionError
+                   (line-region/insert-lines target-path 0 ["a"]))))
 
     (testing "target line must not exceed the last insertion point"
-      (let [ex (try
-                 (line-region/insert-lines target-path 3 ["a"])
-                 nil
-                 (catch clojure.lang.ExceptionInfo e
-                   e))]
-        (is (= :invalid-target-line (:type (ex-data ex))))))))
+      (is (thrown? AssertionError
+                   (line-region/insert-lines target-path 3 ["a"]))))))
