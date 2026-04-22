@@ -17,16 +17,16 @@
   (let [lines (read-file-lines source-file)
         num-lines (count lines)]
 
-    (assert (not (< source-first-line 1)))
-    (assert (not (> source-first-line num-lines)))
-    (assert (not (< source-last-line source-first-line)))
-    (assert (not (> source-last-line num-lines)))
+    (assert (>= source-first-line 1))
+    (assert (<= source-first-line num-lines))
+    (assert (>= source-last-line source-first-line))
+    (assert (<= source-last-line num-lines))
 
     (let [copied-lines (subvec (vec lines) (dec source-first-line) source-last-line)
           target-lines (read-file-lines target-file)
           target-count (count target-lines)]
-      (assert (not (< target-line 1)))
-      (assert (not (> target-line (inc target-count))))
+      (assert (>= target-line 1))
+      (assert (<= target-line (inc target-count)))
 
       (write-file-lines! target-file
                          (vec (concat
@@ -46,8 +46,8 @@
   (let [target-lines (read-file-lines target-file)
         target-count (count target-lines)]
 
-    (assert (not (< target-line 1)))
-    (assert (not (> target-line (inc target-count))))
+    (assert (>= target-line 1))
+    (assert (<= target-line (inc target-count)))
 
     (write-file-lines! target-file
                        (vec (concat
