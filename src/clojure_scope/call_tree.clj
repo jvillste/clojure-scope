@@ -153,9 +153,46 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
                    (source-code-by-var-for-folder source-folder))))
 
 
+(defn tree-lines [dependencies namespace name]
+  (let [dependencies-by-var (core/dependencies-by-var dependencies)
+        line-for (fn [var-id depth]
+                   (str (apply str (repeat (* 2 depth) " "))
+                        (str (first var-id) "/" (second var-id))))]
+    (letfn [(walk [var-id path depth]
+              (if (contains? path var-id)
+                [(str (line-for var-id depth) " (cycle)")]
+                (into [(line-for var-id depth)]
+                      (mapcat #(walk % (conj path var-id) (inc depth))
+                              (sort (get dependencies-by-var var-id))))))]
+      (walk [namespace name] #{} 0))))
+
+(deftest test-tree-lines
+  (is (= ["ns/a"
+          "  ns/b"]
+         (tree-lines [{:dependent ["other-ns" "x"]
+                       :dependency ["ns" "b"]}
+                      {:dependent ["ns" "a"]
+                       :dependency ["ns" "b"]}]
+                     "ns"
+                     "a"))))
+
+(defn print-tree
+  "prints a dependency tree starting from a given var"
+  [source-folder namespace name]
+  (doseq [line (tree-lines (core/var-dependencies source-folder)
+                           namespace name)]
+    (println line)))
+
 (comment
   (create-tree-html "src"
                     "clojure-scope.call-tree"
                     "create-tree-html"
                     "temp/test.html")
+
+
+  (print-tree "src"
+              "clojure-scope.core"
+              "sorted-dependencies")
+
+
   )

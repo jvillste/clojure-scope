@@ -135,36 +135,6 @@
                                [{:dependent ["namespace-1" "var-1"]
                                  :dependency ["namespace-1" "var-2"]}]))))
 
-(defn tree-lines [dependencies namespace name]
-  (let [dependencies-by-var (dependencies-by-var dependencies)
-        line-for (fn [var-id depth]
-                   (str (apply str (repeat (* 2 depth) " "))
-                        (str (first var-id) "/" (second var-id))))]
-    (letfn [(walk [var-id path depth]
-              (if (contains? path var-id)
-                [(str (line-for var-id depth) " (cycle)")]
-                (into [(line-for var-id depth)]
-                      (mapcat #(walk % (conj path var-id) (inc depth))
-                              (sort (get dependencies-by-var var-id))))))]
-      (walk [namespace name] #{} 0))))
-
-(deftest test-tree-lines
-  (is (= ["ns/a"
-          "  ns/b"]
-         (tree-lines [{:dependent ["other-ns" "x"]
-                       :dependency ["ns" "b"]}
-                      {:dependent ["ns" "a"]
-                       :dependency ["ns" "b"]}]
-                     "ns"
-                     "a"))))
-
-(defn print-tree
-  "prints a dependency tree starting from a given var"
-  [source-folder namespace name]
-  (doseq [line (tree-lines (var-dependencies source-folder)
-                           namespace name)]
-    (println line)))
-
 
 (defn copy-clojure-form [form-name source-file target-file target-line]
   (let [matches (->> (string-to-forms/string-to-forms (slurp source-file))
@@ -267,10 +237,4 @@
 (comment
   (sorted-dependencies (var-dependencies "src")
                        ["clojure-scope.core" "sorted-dependencies"])
-
-  (print-tree "src"
-              "clojure-scope.core"
-              "sorted-dependencies")
-
-
   )
