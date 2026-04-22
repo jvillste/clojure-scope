@@ -20,7 +20,7 @@
 (defn var-id [{:keys [ns name]}]
   [(str ns) (str name)])
 
-(defn node
+(defn var-definition
   [{:keys [ns name filename row col end-row end-col defined-by] :as definition}]
   {:namespace (str ns)
    :name (str name)
@@ -33,41 +33,12 @@
    ;;:definition definition
    })
 
-(defn edge
-  [{:keys [from from-var to name arity filename row col] :as usage}]
-  {:from [(str from) (str from-var)]
-   :to [(str to) (str name)]
-   ;; :type (if (some? arity) :call :ref)
-   ;; :filename filename
-   ;; :row row
-   ;; :col col
-   ;; :usage usage
-   })
-
-(defn var-dependency-graph [file-or-folder]
-  (let [{:keys [var-definitions var-usages]} (analyze-folder file-or-folder)
-        definitions-by-id (into {}
-                                (map (juxt var-id identity))
-                                var-definitions)
-        internal-var? (fn [[ns name]]
-                        (contains? definitions-by-id [ns name]))
-        nodes (->> var-definitions
-                   (map node)
-                   (sort-by (juxt :namespace :name))
-                   vec)
-        edges (->> var-usages
-                   (keep (fn [usage]
-                           (when-let [source-var (:from-var usage)]
-                             (let [source-id [(str (:from usage)) (str source-var)]
-                                   target-id [(str (:to usage)) (str (:name usage))]]
-                               (when (and (internal-var? source-id)
-                                          (internal-var? target-id))
-                                 (edge usage))))))
-                   (distinct)
-                   (sort-by (juxt :from :to))
-                   vec)]
-    {:nodes nodes
-     :edges edges}))
+(defn vars [file-or-folder]
+  (let [{:keys [var-definitions]} (analyze-folder file-or-folder)]
+    (->> var-definitions
+         (map var-definition)
+         (sort-by (juxt :namespace :name))
+         vec)))
 
 (defn- dependency [{:keys [from from-var to name row col]}]
   {:dependent [(str from) (str from-var)]
@@ -121,14 +92,6 @@
                                 (map (juxt var-id identity))
                                 var-definitions)]
     (source-code-by-var source-folder definitions-by-id)))
-
-(defn -main [& args]
-  (let [[folder & _] args]
-    (when-not folder
-      (binding [*out* *err*]
-        (println "Usage: clojure -M -m clojure-scope.core <source-folder>")
-        (System/exit 1)))
-    (pprint/pprint (var-dependency-graph folder))))
 
 (defn dependencies-by-var [dependencies]
   (reduce (fn [acc {:keys [dependent dependency]}]
@@ -216,34 +179,19 @@
       (walk [namespace name] #{} 0))))
 
 (deftest test-tree-lines
-  (is (= ["clojure-scope.core/var-dependency-graph"
-          "  clojure-scope.core/analyze-folder"
-          "  clojure-scope.core/edge"
-          "  clojure-scope.core/node"
-          "  clojure-scope.core/var-id"]
-         (tree-lines [{:dependent  ["clojure-scope.core" "-main"],
-                       :dependency ["clojure-scope.core" "var-dependency-graph"]}
-                      {:dependent  ["clojure-scope.core" "print-tree"],
-                       :dependency ["clojure-scope.core" "tree-lines"]}
-                      {:dependent  ["clojure-scope.core" "print-tree"],
-                       :dependency ["clojure-scope.core" "var-dependency-graph"]}
-                      {:dependent  ["clojure-scope.core" "test-tree-lines"],
-                       :dependency ["clojure-scope.core" "tree-lines"]}
-                      {:dependent  ["clojure-scope.core" "var-dependency-graph"],
-                       :dependency ["clojure-scope.core" "analyze-folder"]}
-                      {:dependent  ["clojure-scope.core" "var-dependency-graph"],
-                       :dependency ["clojure-scope.core" "edge"]}
-                      {:dependent  ["clojure-scope.core" "var-dependency-graph"],
-                       :dependency ["clojure-scope.core" "node"]}
-                      {:dependent  ["clojure-scope.core" "var-dependency-graph"],
-                       :dependency ["clojure-scope.core" "var-id"]}]
-                     "clojure-scope.core"
-                     "var-dependency-graph"))))
+  (is (= ["ns/a"
+          "  ns/b"]
+         (tree-lines [{:dependent ["other-ns" "x"]
+                       :dependency ["ns" "b"]}
+                      {:dependent ["ns" "a"]
+                       :dependency ["ns" "b"]}]
+                     "ns"
+                     "a"))))
 
 (defn print-tree
   "prints a dependency tree starting from a given var"
   [source-folder namespace name]
-  (doseq [line (tree-lines (:edges (var-dependency-graph source-folder))
+  (doseq [line (tree-lines (var-dependencies source-folder)
                            namespace name)]
     (println line)))
 
@@ -266,38 +214,15 @@
       (walk [namespace name] #{}))))
 
 (deftest test-tree-data
-  (is (= {:namespace "clojure-scope.core"
-          :name "var-dependency-graph"
-          :children [{:namespace "clojure-scope.core"
-                      :name "analyze-folder"
-                      :children []}
-                     {:namespace "clojure-scope.core"
-                      :name "edge"
-                      :children []}
-                     {:namespace "clojure-scope.core"
-                      :name "node"
-                      :children []}
-                     {:namespace "clojure-scope.core"
-                      :name "var-id"
-                      :children []}]}
-         (tree-data [{:dependent ["clojure-scope.core" "-main"]
-                      :dependency ["clojure-scope.core" "var-dependency-graph"]}
-                     {:dependent ["clojure-scope.core" "print-tree"]
-                      :dependency ["clojure-scope.core" "tree-lines"]}
-                     {:dependent ["clojure-scope.core" "print-tree"]
-                      :dependency ["clojure-scope.core" "var-dependency-graph"]}
-                     {:dependent ["clojure-scope.core" "test-tree-lines"]
-                      :dependency ["clojure-scope.core" "tree-lines"]}
-                     {:dependent ["clojure-scope.core" "var-dependency-graph"]
-                      :dependency ["clojure-scope.core" "analyze-folder"]}
-                     {:dependent ["clojure-scope.core" "var-dependency-graph"]
-                      :dependency ["clojure-scope.core" "edge"]}
-                     {:dependent ["clojure-scope.core" "var-dependency-graph"]
-                      :dependency ["clojure-scope.core" "node"]}
-                     {:dependent ["clojure-scope.core" "var-dependency-graph"]
-                      :dependency ["clojure-scope.core" "var-id"]}]
-                    "clojure-scope.core"
-                    "var-dependency-graph"))))
+  (is (= {:namespace "ns",
+          :name "a",
+          :children [{:namespace "ns", :name "b", :children []}]}
+         (tree-data [{:dependent ["other-ns" "x"]
+                      :dependency ["ns" "b"]}
+                     {:dependent ["ns" "a"]
+                      :dependency ["ns" "b"]}]
+                    "ns"
+                    "a"))))
 
 (def tree-toggle-script
   "function directChildByClass(treeNode,className){return Array.from(treeNode.children).find(function(element){return element.classList.contains(className);});}
@@ -383,9 +308,9 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
   starting from a given var. Each tree branch is closed by default,
   but can be opended by clicking."
   [source-folder namespace name html-file-name]
-  (let [{:keys [edges]} (var-dependency-graph source-folder)]
-    (spit (io/file html-file-name)
-          (tree-html edges namespace name (source-code-by-var-for-folder source-folder)))))
+  (spit (io/file html-file-name)
+        (tree-html (var-dependencies source-folder)
+                   namespace name (source-code-by-var-for-folder source-folder))))
 
 (defn copy-clojure-form [form-name source-file target-file target-line]
   (let [matches (->> (string-to-forms/string-to-forms (slurp source-file))
@@ -425,9 +350,9 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
 
 (defn entangled-vars
   "filter out vars that are required also by other vars than the given vars"
-  [var-dependency-graph vars]
+  [var-dependencies vars]
   (set/difference (set vars)
-                  (set (independent-vars var-dependency-graph vars))))
+                  (set (independent-vars var-dependencies vars))))
 
 (deftest test-entangled-vars
   (is (= #{}
@@ -459,66 +384,21 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
                          [["ns" "b"]]))))
 
 (comment
-  (sorted-dependencies (var-dependency-graph "src")
+  (sorted-dependencies (var-dependencies "src")
                        ["clojure-scope.core" "sorted-dependencies"])
 
+  (print-tree "src"
+              "clojure-scope.core"
+              "sorted-dependencies")
 
-  (var-dependency-graph "/Users/jukka/google-drive/src/mappa/src/mappa/core.cljs")
-  (var-dependency-graph "/Users/jukka/google-drive/src/mappa/src")
-  (print-tree "/Users/jukka/google-drive/src/mappa/src"
-              "mappa.core"
-              "init-mappa")
-
-  (create-tree-html "/Users/jukka/google-drive/src/mappa/src"
-                    "mappa.core"
-                    "init-mappa"
+  (create-tree-html "src"
+                    "clojure-scope.core"
+                    "sorted-dependencies"
                     "temp/test.html")
-
-  (analyze-folder "/Users/jukka/google-drive/src/mappa/src")
-
 
   (source-code-by-var-for-folder "/Users/jukka/google-drive/src/mappa/src")
 
-  (let [var-dependency-graph (var-dependency-graph "/Users/jukka/google-drive/src/mappa/src")
-        edges (->> var-dependency-graph
-                   :edges
-                   (filter (fn [edge]
-                             (and (= "mappa.core" (first (:to edge)))
-                                  (= "mappa.core" (first (:from edge)))))))
-        callers (->> edges
-                     (group-by :to)
-                     (medley/map-vals (fn [edges]
-                                        (distinct (map second (map :from edges)))))
-                     (medley/map-keys second))
-        calls (->> edges
-                   (group-by :from)
-                   (medley/map-vals (fn [edges]
-                                      (distinct (map second (map :to edges)))))
-                   (medley/map-keys second))
-        reference-counts (->> edges
-                              (group-by :to)
-                              (medley/map-vals count)
-                              (medley/map-keys second)
-                              (sort-by (juxt second first))
-                              (into {}))
-        tags (medley/map-vals :tags (medley/index-by :var (edn/read-string (slurp "/Users/jukka/google-drive/src/mappa/temp/core-var-tags.edn"))))
-        nodes (for [node (->> (:nodes var-dependency-graph)
-                              (filter (comp #{"mappa.core"} :namespace))
-                              (filter (comp #{"create-and-write-vertex-buffer"} :name)))]
 
-                {:name (:name node)
-                 ;; :reference-count (get reference-counts (:name node))
-                 :callers (get callers (:name node))
-                 :calls (get calls (:name node))
-                 :tags-set (set (get tags (:name node)))})]
-    (->>  nodes
-          (sort-by (comp count :callers)))
-    #_(for [tag (sort (distinct (mapcat :tags-set nodes)))]
-        {:tag tag
-         :vars (->> nodes
-                    (filter (fn [node]
-                              (contains? (:tags-set node)
-                                         tag))))}))
 
 
   )

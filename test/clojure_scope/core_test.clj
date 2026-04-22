@@ -21,15 +21,10 @@
 (deftest var-dependency-graph-test
   (let [dir (create-temp-dir)]
     (write-demo-source-file dir)
-    (is (= {:nodes
-            [{:namespace "demo.core", :name "a", :start-line 4, :end-row 4}
-             {:namespace "demo.core", :name "b", :start-line 3, :end-row 3}
-             {:namespace "demo.core", :name "c", :start-line 2, :end-row 2}],
-            :edges
-            [{:from ["demo.core" "a"], :to ["demo.core" "b"]}
-             {:from ["demo.core" "a"], :to ["demo.core" "c"]}
-             {:from ["demo.core" "b"], :to ["demo.core" "c"]}]}
-           (sut/var-dependency-graph (.getPath dir))))))
+    (is (= [{:dependent ["demo.core" "a"], :dependency ["demo.core" "b"], :line 4, :column 12}
+            {:dependent ["demo.core" "a"], :dependency ["demo.core" "c"], :line 4, :column 16}
+            {:dependent ["demo.core" "b"], :dependency ["demo.core" "c"], :line 3, :column 12}]
+           (sut/var-dependencies (.getPath dir))))))
 
 (deftest source-code-by-var-for-folder-test
   (let [dir (create-temp-dir)]
