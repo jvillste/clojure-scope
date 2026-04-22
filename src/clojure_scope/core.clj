@@ -6,6 +6,7 @@
    [clojure.edn :as edn]
    [clojure.java.io :as io]
    [clojure.pprint :as pprint]
+   [clojure.set :as set]
    [clojure.string :as string]
    [clojure.test :refer [deftest is]]
    [hiccup.core :as hiccup]
@@ -398,6 +399,12 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
                         (map :from)
                         (remove var-set)
                         (empty?)))))))
+
+(defn entangled-vars
+  "filter out vars that are required also by other vars than the given vars"
+  [var-dependency-graph vars]
+  (set/difference (set vars)
+                  (independent-vars var-dependency-graph vars)))
 
 (comment
   (sorted-dependencies (var-dependency-graph "src")
