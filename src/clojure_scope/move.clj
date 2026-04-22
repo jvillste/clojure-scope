@@ -200,13 +200,26 @@
                                 new-namespace-alias
                                 new-name)))
 
+(defn file-lines [path]
+  (let [content (slurp path)]
+    (if (empty? content)
+      []
+      (vec (string/split-lines content)))))
+
 (defn copy-var! [target-file definition]
-  (let [target-start-line (inc (core/line-count target-file))]
-    (line-region/copy-line-region (:filename definition)
-                                  target-file
-                                  (:row definition)
-                                  (:end-row definition)
-                                  target-start-line)
+  (let [target-lines (file-lines target-file)
+        copied-lines (subvec (file-lines (:filename definition))
+                             (dec (:row definition))
+                             (:end-row definition))
+        needs-leading-blank-line (and (not (empty? target-lines))
+                                      (not (string/blank? (last target-lines))))
+        target-line (inc (count target-lines))
+        target-start-line (+ target-line
+                             (if needs-leading-blank-line 1 0))
+        lines-to-insert (if needs-leading-blank-line
+                          (into [""] copied-lines)
+                          copied-lines)]
+    (line-region/insert-lines target-file target-line lines-to-insert)
     {:source-file (:filename definition)
      :target-file target-file
      :source-start-line (:row definition)

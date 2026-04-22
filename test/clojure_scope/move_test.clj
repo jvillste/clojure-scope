@@ -49,6 +49,7 @@
     (is (= (str "(ns demo.target)\n"
                 "\n"
                 "(defn existing [] :ok)\n"
+                "\n"
                 "(defn moved [] 1)")
            (read-file directory "src/demo/target.clj")))
     (is (= (str "(ns demo.caller\n"
@@ -79,7 +80,9 @@
     (is (= (str "(ns demo.source)\n")
            (read-file directory "src/demo/source.clj")))
     (is (= (str "(ns demo.target)\n"
+                "\n"
                 "(defn helper [] 1)\n"
+                "\n"
                 "(defn moved [] (helper))")
            (read-file directory "src/demo/target.clj")))))
 
@@ -104,6 +107,7 @@
                 "(defn helper [] 1)\n")
            (read-file directory "src/demo/source.clj")))
     (is (= (str "(ns demo.target (:require [demo.source :as source]))\n"
+                "\n"
                 "(defn moved [] (source/helper))")
            (read-file directory "src/demo/target.clj")))))
 
@@ -135,6 +139,7 @@
 
     (is (= (str "(ns demo.target\n"
                 "  (:require [other.util :as util] [demo.util :as util1]))\n"
+                "\n"
                 "(defn moved [] (util1/answer))")
            (read-file directory "src/demo/target.clj")))))
 
@@ -153,6 +158,7 @@
     (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
 
     (is (= (str "(ns demo.target)\n"
+                "\n"
                 "(defn moved [] (atom 1))")
            (read-file directory "src/demo/target.clj")))))
 
