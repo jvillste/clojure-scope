@@ -138,6 +138,24 @@
                 "(defn moved [] (util1/answer))")
            (read-file directory "src/demo/target.clj")))))
 
+(deftest move-var-keeps-unqualified-clojure-core-references-unqualified
+  (let [directory (create-temp-dir)
+        source-folder (.getPath (io/file directory "src"))]
+    (write-source-file! directory
+                        "src/demo/source.clj"
+                        (str "(ns demo.source)\n"
+                             "\n"
+                             "(defn moved [] (atom 1))\n"))
+    (write-source-file! directory
+                        "src/demo/target.clj"
+                        (str "(ns demo.target)\n"))
+
+    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+
+    (is (= (str "(ns demo.target)\n"
+                "(defn moved [] (atom 1))")
+           (read-file directory "src/demo/target.clj")))))
+
 (deftest move-one-var-reuses-existing-target-alias-in-caller
   (let [directory (create-temp-dir)
         source-folder (.getPath (io/file directory "src"))]

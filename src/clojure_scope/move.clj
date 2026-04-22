@@ -148,6 +148,10 @@
                        :new-namespace-alias nil
                        :new-name dependency-name}]
 
+      (and (nil? symbol-namespace)
+           (= dependency-namespace "clojure.core"))
+      [planning-state nil]
+
       (nil? symbol-namespace)
       (let [[updated-planning-state alias] (reserve-alias planning-state
                                                           (:target-file copied-var)
