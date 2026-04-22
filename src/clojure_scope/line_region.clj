@@ -13,47 +13,20 @@
     (.mkdirs (.getParentFile file))
     (spit file (str/join \newline lines))))
 
-(defn copy-line-region
-  [source-file target-file source-first-line source-last-line target-line]
+(defn copy-line-region [source-file target-file source-first-line source-last-line target-line]
   (let [lines (read-file-lines source-file)
         num-lines (count lines)]
 
-    (when (< source-first-line 1)
-      (throw (ex-info (format "%d is out of range (1-%d)" source-first-line num-lines)
-                      {:type :invalid-source-first-line
-                       :source-first-line source-first-line
-                       :max num-lines})))
-    (when (> source-first-line num-lines)
-      (throw (ex-info (format "%d is out of range (1-%d)" source-first-line num-lines)
-                      {:type :invalid-source-first-line
-                       :source-first-line source-first-line
-                       :max num-lines})))
-    (when (< source-last-line source-first-line)
-      (throw (ex-info (format "%d is out of range (%d-%d)" source-last-line source-first-line num-lines)
-                      {:type :invalid-source-last-line
-                       :source-last-line source-last-line
-                       :min source-first-line
-                       :max num-lines})))
-    (when (> source-last-line num-lines)
-      (throw (ex-info (format "%d is out of range (%d-%d)" source-last-line source-first-line num-lines)
-                      {:type :invalid-source-last-line
-                       :source-last-line source-last-line
-                       :min source-first-line
-                       :max num-lines})))
+    (assert (not (< source-first-line 1)))
+    (assert (not (> source-first-line num-lines)))
+    (assert (not (< source-last-line source-first-line)))
+    (assert (not (> source-last-line num-lines)))
 
     (let [copied-lines (subvec (vec lines) (dec source-first-line) source-last-line)
           target-lines (read-file-lines target-file)
           target-count (count target-lines)]
-      (when (< target-line 1)
-        (throw (ex-info (format "%d is out of range (1-%d)" target-line (inc target-count))
-                        {:type :invalid-target-line
-                         :target-line target-line
-                         :max (inc target-count)})))
-      (when (> target-line (inc target-count))
-        (throw (ex-info (format "%d is out of range (1-%d)" target-line (inc target-count))
-                        {:type :invalid-target-line
-                         :target-line target-line
-                         :max (inc target-count)})))
+      (assert (not (< target-line 1)))
+      (assert (not (> target-line (inc target-count))))
 
       (write-file-lines! target-file
                          (vec (concat
@@ -72,16 +45,9 @@
   [target-file target-line lines]
   (let [target-lines (read-file-lines target-file)
         target-count (count target-lines)]
-    (when (< target-line 1)
-      (throw (ex-info (format "%d is out of range (1-%d)" target-line (inc target-count))
-                      {:type :invalid-target-line
-                       :target-line target-line
-                       :max (inc target-count)})))
-    (when (> target-line (inc target-count))
-      (throw (ex-info (format "%d is out of range (1-%d)" target-line (inc target-count))
-                      {:type :invalid-target-line
-                       :target-line target-line
-                       :max (inc target-count)})))
+
+    (assert (not (< target-line 1)))
+    (assert (not (> target-line (inc target-count))))
 
     (write-file-lines! target-file
                        (vec (concat
