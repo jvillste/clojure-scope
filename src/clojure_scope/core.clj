@@ -31,7 +31,11 @@
    ;;:definition definition
    })
 
-(defn vars [file-or-folder]
+(defn var-definiton-to-var [var-definition]
+  [(:namespace var-definition)
+   (:name var-definition)])
+
+(defn var-definitions [file-or-folder]
   (let [{:keys [var-definitions]} (analyze-folder file-or-folder)]
     (->> var-definitions
          (map var-definition)
@@ -70,10 +74,25 @@
           {}
           dependencies))
 
+(defn colocated-test-vars [var-definitions var]
+  (->> var-definitions
+       (filter (fn [var-definition]
+                 (and (= (first var)
+                         (:namespace var-definition))
+                      (= (:name var-definition)
+                         (str "test-" (second var)))
+                      (= "clojure.test/deftest" (:defined-by var-definition)))))
+       (map var-definiton-to-var)))
+
+(defn add-colocated-test-vars [var-definitions vars]
+  (concat vars
+          (mapcat (partial colocated-test-vars var-definitions)
+                  vars)))
+
 (defn transitive-dependencies
   "returns all wars a given var depends on direclty and indirectly"
-  [root-var edges]
-  (let [dependency-map (dependencies-by-var edges)]
+  [root-var dependencies]
+  (let [dependency-map (dependencies-by-var dependencies)]
     (loop [pending (seq (get dependency-map root-var))
            visited #{root-var}
            result #{}]
@@ -99,10 +118,12 @@
                                    {:dependent ["namespace" "e"],
                                     :dependency ["namespace" "a"]}]))))
 
+
+
 (defn sort-by-dependencies
   "orders nodes so that the ones that come last depend on the earlier
   ones."
-  [nodes dependencies]
+  [dependencies nodes]
   (let [node-set (set nodes)
         dependency-map (reduce (fn [dependency-map {:keys [dependent dependency]}]
                                  (if (and (contains? node-set dependent)
@@ -131,11 +152,17 @@
 (deftest test-sort-by-dependencies
   (is (= [["namespace-1" "var-2"]
           ["namespace-1" "var-1"]]
-         (sort-by-dependencies [["namespace-1" "var-1"]
-                                ["namespace-1" "var-2"]]
-                               [{:dependent ["namespace-1" "var-1"]
-                                 :dependency ["namespace-1" "var-2"]}]))))
+         (sort-by-dependencies [{:dependent ["namespace-1" "var-1"]
+                                 :dependency ["namespace-1" "var-2"]}]
+                               [["namespace-1" "var-1"]
+                                ["namespace-1" "var-2"]]))))
 
+
+(defn sorted-related-vars [var-definitions dependency-graph var]
+  (->> (transitive-dependencies var dependency-graph)
+       (concat [var])
+       (add-colocated-test-vars var-definitions)
+       (sort-by-dependencies dependency-graph)))
 
 (defn copy-clojure-form [form-name source-file target-file target-line]
   (let [matches (->> (string-to-forms/string-to-forms (slurp source-file))
@@ -151,9 +178,9 @@
         (line-region/copy-line-region source-file target-file start-line end-line target-line)))))
 
 (defn sorted-dependencies [var-dependencies a-var]
-  (sort-by-dependencies (transitive-dependencies a-var
-                                                 var-dependencies)
-                        var-dependencies))
+  (sort-by-dependencies var-dependencies
+                        (transitive-dependencies a-var
+                                                 var-dependencies)))
 
 
 (defn line-count [path]
