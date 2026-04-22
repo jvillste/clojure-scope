@@ -22,9 +22,9 @@
   (let [dir (create-temp-dir)]
     (write-demo-source-file dir)
     (is (= {:nodes
-            [{:namespace "demo.core", :name "a", :start-row 4, :end-row 4}
-             {:namespace "demo.core", :name "b", :start-row 3, :end-row 3}
-             {:namespace "demo.core", :name "c", :start-row 2, :end-row 2}],
+            [{:namespace "demo.core", :name "a", :start-line 4, :end-row 4}
+             {:namespace "demo.core", :name "b", :start-line 3, :end-row 3}
+             {:namespace "demo.core", :name "c", :start-line 2, :end-row 2}],
             :edges
             [{:from ["demo.core" "a"], :to ["demo.core" "b"]}
              {:from ["demo.core" "a"], :to ["demo.core" "c"]}

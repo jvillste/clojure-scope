@@ -25,7 +25,7 @@
    :name (str name)
    ;; :defined-by defined-by
    ;; :filename filename
-   :start-row row
+   :start-line row
    ;; :col col
    :end-row end-row
    ;; :end-col end-col
@@ -377,21 +377,34 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
       (let [{:keys [start-line end-line]} (first matches)]
         (line-region/copy-line-region source-file target-file start-line end-line target-line)))))
 
-(defn sorted-dependent-vars [a-var a-var-dependency-graph]
+(defn sorted-dependencies [var-dependency-graph a-var]
   (sort-by-dependencies (conj (transitive-dependencies a-var
-                                                       (:edges a-var-dependency-graph))
+                                                       (:edges var-dependency-graph))
                               a-var)
-                        (:edges a-var-dependency-graph)))
+                        (:edges var-dependency-graph)))
 
 (defn line-count [path]
   (with-open [rdr (io/reader path)]
     (count (line-seq rdr))))
 
+(defn independent-vars
+  "filter out vars that are required only by vars in the given var sequence"
+  [var-dependency-graph vars]
+  (let [var-set (set vars)]
+    (->> vars
+         (filter (fn [dependency]
+                   (->> (:edges var-dependency-graph)
+                        (filter (comp #{dependency} :to))
+                        (map :from)
+                        (remove var-set)
+                        (empty?)))))))
+
 (comment
-  (sorted-dependent-vars ["clojure-scope.core" "sorted-dependent-vars"]
-                         (var-dependency-graph "src"))
+  (sorted-dependencies (var-dependency-graph "src")
+                       ["clojure-scope.core" "sorted-dependencies"])
 
 
+  (var-dependency-graph "/Users/jukka/google-drive/src/mappa/src/mappa/core.cljs")
   (var-dependency-graph "/Users/jukka/google-drive/src/mappa/src")
   (print-tree "/Users/jukka/google-drive/src/mappa/src"
               "mappa.core"
