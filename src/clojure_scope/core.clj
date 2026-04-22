@@ -106,12 +106,12 @@
     (loop [pending (seq (get dependency-map root-var))
            visited #{root-var}
            result #{}]
-      (if-let [var-id (first pending)]
-        (if (contains? visited var-id)
+      (if-let [a-var (first pending)]
+        (if (contains? visited a-var)
           (recur (rest pending) visited result)
-          (recur (into (rest pending) (get dependency-map var-id))
-                 (conj visited var-id)
-                 (conj result var-id)))
+          (recur (into (rest pending) (get dependency-map a-var))
+                 (conj visited a-var)
+                 (conj result a-var)))
         result))))
 
 (deftest test-transitive-dependencies
@@ -133,10 +133,10 @@
   ones."
   [nodes dependencies]
   (let [node-set (set nodes)
-        dependency-map (reduce (fn [dependency-map {:keys [from to]}]
-                                 (if (and (contains? node-set from)
-                                          (contains? node-set to))
-                                   (update dependency-map from (fnil conj #{}) to)
+        dependency-map (reduce (fn [dependency-map {:keys [dependent dependency]}]
+                                 (if (and (contains? node-set dependent)
+                                          (contains? node-set dependency))
+                                   (update dependency-map dependent (fnil conj #{}) dependency)
                                    dependency-map))
                                {}
                                dependencies)]
@@ -162,8 +162,8 @@
           ["namespace-1" "var-1"]]
          (sort-by-dependencies [["namespace-1" "var-1"]
                                 ["namespace-1" "var-2"]]
-                               [{:from ["namespace-1" "var-1"]
-                                 :to ["namespace-1" "var-2"]}]))))
+                               [{:dependent ["namespace-1" "var-1"]
+                                 :dependency ["namespace-1" "var-2"]}]))))
 
 (defn tree-lines [dependencies namespace name]
   (let [dependencies-by-var (dependencies-by-var dependencies)
@@ -326,10 +326,10 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
         (line-region/copy-line-region source-file target-file start-line end-line target-line)))))
 
 (defn sorted-dependencies [var-dependencies a-var]
-  (sort-by-dependencies (conj (transitive-dependencies a-var
-                                                       var-dependencies)
-                              a-var)
+  (sort-by-dependencies (transitive-dependencies a-var
+                                                 var-dependencies)
                         var-dependencies))
+
 
 (defn line-count [path]
   (with-open [rdr (io/reader path)]
@@ -340,13 +340,36 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
   sequence"
   [var-dependencies vars]
   (let [var-set (set vars)]
-    (filter (fn [dependency]
+    (filter (fn [var]
               (->> var-dependencies
-                   (filter (comp #{dependency} :dependency))
+                   (filter (comp #{var} :dependency))
                    (map :dependent)
                    (remove var-set)
                    (empty?)))
             vars)))
+
+(defn distinct-var-dependencies [var-dependencies]
+  (->> var-dependencies
+       (map (fn [var-dependency]
+              (select-keys var-dependency [:dependency :dependent])))
+       (distinct)))
+
+(deftest test-distinct-var-dependencies
+  (is (= '({:dependency ["ns" "b"], :dependent ["ns" "a"]})
+         (distinct-var-dependencies [{:dependent ["ns" "a"],
+                                      :dependency ["ns" "b"],
+                                      :line 1273,
+                                      :column 11}
+                                     {:dependent ["ns" "a"],
+                                      :dependency ["ns" "b"],
+                                      :line 1343,
+                                      :column 24}]))))
+
+(defn sorted-independent-dependencies [var-dependencies a-var]
+  (let [sorted-dependencies (sorted-dependencies var-dependencies
+                                                 a-var)]
+    (->> sorted-dependencies
+         (filter (set (independent-vars var-dependencies sorted-dependencies))))))
 
 (defn entangled-vars
   "filter out vars that are required also by other vars than the given vars"
@@ -358,18 +381,16 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
   (is (= #{}
          (entangled-vars [] ["ns" "a"])))
 
-
+  (is (= #{}
+         (entangled-vars [{:dependent ["ns" "a"]
+                           :dependency ["ns" "b"]}]
+                         [])))
 
   (is (= #{}
          (entangled-vars [{:dependent ["ns" "a"]
                            :dependency ["ns" "b"]}]
                          [["ns" "a"]
                           ["ns" "b"]])))
-
-  (is (= #{}
-         (entangled-vars [{:dependent ["ns" "a"]
-                           :dependency ["ns" "b"]}]
-                         [])))
 
   (is (= #{["ns" "b"]}
          (entangled-vars [{:dependent ["other-ns" "a"]
@@ -382,6 +403,12 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
                           {:dependent ["ns" "a"]
                            :dependency ["ns" "b"]}]
                          [["ns" "b"]]))))
+
+(defn entangled-dependencies [var-dependencies a-var]
+  (let [sorted-dependencies (sorted-dependencies var-dependencies
+                                                 a-var)]
+    (->> sorted-dependencies
+         (filter (set (entangled-vars var-dependencies sorted-dependencies))))))
 
 (comment
   (sorted-dependencies (var-dependencies "src")
