@@ -91,13 +91,15 @@
   (->> dependency-graph
        (filter (fn [dependency]
                  (= var (:dependency dependency))))
-       (map :dependent)))
+       (map :dependent)
+       (distinct)))
 
 (defn dependencies [dependency-graph var]
   (->> dependency-graph
        (filter (fn [dependency]
                  (= var (:dependent dependency))))
-       (map :dependency)))
+       (map :dependency)
+       (distinct)))
 
 (defn colocated-test-vars [var-definitions var]
   (->> var-definitions
