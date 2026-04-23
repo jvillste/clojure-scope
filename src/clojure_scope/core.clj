@@ -33,13 +33,6 @@
   [(:namespace var-definition)
    (:name var-definition)])
 
-(defn var-definitions [file-or-folder]
-  (let [{:keys [var-definitions]} (analyze-folder file-or-folder)]
-    (->> var-definitions
-         (map var-definition)
-         (sort-by (juxt :namespace :name))
-         vec)))
-
 (defn- top-level-var-form? [form]
   (and (:name form)
        (string/starts-with? (:kind form) "def")))
@@ -60,6 +53,17 @@
              [(str (:name var-definition))
               (:end-row var-definition)]))
 
+(defn var-definitions [file-or-folder]
+  (let [{:keys [var-definitions]} (analyze-folder file-or-folder)
+        top-level-definitions-by-file (top-level-definition-keys-by-file
+                                       (distinct (map :filename var-definitions)))]
+    (->> var-definitions
+         (filter (partial top-level-var-definition?
+                          top-level-definitions-by-file))
+         (map var-definition)
+         (sort-by (juxt :namespace :name))
+         vec)))
+
 (defn- dependency [{:keys [from from-var to name row col filename]}]
   {:dependent [(str from) (str from-var)]
    :dependency [(str to) (str name)]
@@ -68,16 +72,12 @@
    :column col})
 
 (defn dependncy-graph [file-or-folder]
-  (let [{:keys [var-definitions var-usages]} (analyze-folder file-or-folder)
-        top-level-definitions-by-file (top-level-definition-keys-by-file
-                                       (distinct (map :filename var-definitions)))
-        top-level-var-ids (->> var-definitions
-                               (filter (partial top-level-var-definition?
-                                                top-level-definitions-by-file))
-                               (map var-id)
-                               set)
-        internal-var? (fn [[ns name]]
-                        (contains? top-level-var-ids [ns name]))]
+  (let [{:keys [var-usages]} (analyze-folder file-or-folder)
+        internal-vars (->> (var-definitions file-or-folder)
+                           (map var-definiton-to-var)
+                           set)
+        internal-var? (fn [[namespace name]]
+                        (contains? internal-vars [namespace name]))]
     (->> var-usages
          (keep (fn [usage]
                  (when-let [source-var (:from-var usage)]

@@ -29,6 +29,22 @@
                   (dissoc dependency :file-name))
                 (sut/dependncy-graph (.getPath dir)))))))
 
+(deftest var-definitions-ignore-vars-defined-inside-comment-forms
+  (let [dir (create-temp-dir)
+        src-dir (io/file dir "src" "demo")
+        source-file (io/file src-dir "core.clj")]
+    (.mkdirs src-dir)
+    (spit source-file
+          (string/join "\n"
+                       ["(ns demo.core)"
+                        "(defn helper [] 1)"
+                        "(comment"
+                        "  (defn hidden [] (helper)))"
+                        "(defn main [] [(helper) (hidden)])"]))
+    (is (= [{:namespace "demo.core", :name "helper", :defined-by "clojure.core/defn", :start-line 2, :end-line 2}
+            {:namespace "demo.core", :name "main", :defined-by "clojure.core/defn", :start-line 5, :end-line 5}]
+           (sut/var-definitions (.getPath dir))))))
+
 (deftest dependncy-graph-ignores-vars-defined-inside-comment-forms
   (let [dir (create-temp-dir)
         src-dir (io/file dir "src" "demo")
