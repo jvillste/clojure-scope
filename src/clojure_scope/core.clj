@@ -6,7 +6,7 @@
    [clojure.java.io :as io]
    [clojure.set :as set]
    [clojure.string :as string]
-   [clojure.test :refer [deftest is]]))
+   [clojure.test :refer [deftest is testing]]))
 
 (defn analyze-folder [folder]
   (:analysis (kondo/run! {:lint [folder]
@@ -140,6 +140,61 @@
   (concat vars
           (mapcat (partial colocated-test-vars var-definitions)
                   vars)))
+
+(deftest test-add-colocated-test-vars
+  (let [var-definitions [{:namespace "demo.core"
+                          :name "my-fn"
+                          :defined-by "clojure.core/defn"
+                          :start-line 1
+                          :end-line 1}
+                         {:namespace "demo.core"
+                          :name "test-my-fn"
+                          :defined-by "clojure.test/deftest"
+                          :start-line 2
+                          :end-line 2}
+                         {:namespace "demo.core"
+                          :name "other-fn"
+                          :defined-by "clojure.core/defn"
+                          :start-line 3
+                          :end-line 3}
+                         {:namespace "demo.core"
+                          :name "test-other-fn"
+                          :defined-by "clojure.core/defn"
+                          :start-line 4
+                          :end-line 4}
+                         {:namespace "other.ns"
+                          :name "test-my-fn"
+                          :defined-by "clojure.test/deftest"
+                          :start-line 1
+                          :end-line 1}]]
+
+    (is (= [["demo.core" "my-fn"]
+            ["demo.core" "test-my-fn"]]
+           (add-colocated-test-vars var-definitions
+                                    [["demo.core" "my-fn"]])))
+
+    (is (= [["demo.core" "other-fn"]]
+           (add-colocated-test-vars var-definitions
+                                    [["demo.core" "other-fn"]])))
+    (is (= [["other.ns" "my-fn"]
+            ["other.ns" "test-my-fn"]]
+           (add-colocated-test-vars var-definitions
+                                    [["other.ns" "my-fn"]])))
+    (is (= [["demo.core" "my-fn"]
+            ["demo.core" "other-fn"]
+            ["demo.core" "test-my-fn"]]
+           (add-colocated-test-vars var-definitions
+                                    [["demo.core" "my-fn"]
+                                     ["demo.core" "other-fn"]])))
+    (is (= [["demo.core" "my-fn"]
+            ["demo.core" "other-fn"]]
+           (add-colocated-test-vars []
+                                    [["demo.core" "my-fn"]
+                                     ["demo.core" "other-fn"]])))
+
+    (is (= []
+           (add-colocated-test-vars var-definitions
+                                    [])))))
 
 (defn transitive-related-vars [root-var related-vars-by-var]
   (loop [pending (seq (get related-vars-by-var root-var))
