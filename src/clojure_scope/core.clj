@@ -218,7 +218,7 @@
                                 ["namespace-1" "var-2"]]))))
 
 
-(defn sorted-related-vars [var-definitions dependency-graph var]
+(defn sorted-implementing-vars [var-definitions dependency-graph var]
   (->> (transitive-dependencies dependency-graph var)
        (concat [var])
        (add-colocated-test-vars var-definitions)
