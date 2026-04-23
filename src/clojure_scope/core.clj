@@ -80,6 +80,13 @@
 (defn dependents-by-var [dependency-graph]
   (group-by-pair dependency-graph :dependency :dependent))
 
+(deftest dependents-by-var-test
+  (is (= {["ns" "b"] [["ns" "a"]]
+          ["ns" "a"] [["ns" "c"]]}
+         (dependents-by-var
+          [{:dependent ["ns" "a"], :dependency ["ns" "b"]}
+           {:dependent ["ns" "c"], :dependency ["ns" "a"]}]))))
+
 (defn dependents [dependency-graph var]
   (->> dependency-graph
        (filter (fn [dependency]
@@ -91,13 +98,6 @@
        (filter (fn [dependency]
                  (= var (:dependent dependency))))
        (map :dependency)))
-
-(deftest dependents-by-var-test
-  (is (= {["ns" "b"] [["ns" "a"]]
-          ["ns" "a"] [["ns" "c"]]}
-         (dependents-by-var
-          [{:dependent ["ns" "a"], :dependency ["ns" "b"]}
-           {:dependent ["ns" "c"], :dependency ["ns" "a"]}]))))
 
 (defn colocated-test-vars [var-definitions var]
   (->> var-definitions
