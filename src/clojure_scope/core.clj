@@ -112,14 +112,14 @@
           [{:dependent ["ns" "a"], :dependency ["ns" "b"]}
            {:dependent ["ns" "c"], :dependency ["ns" "a"]}]))))
 
-(defn dependents [dependency-graph var]
+(defn immediate-dependents [dependency-graph var]
   (->> dependency-graph
        (filter (fn [dependency]
                  (= var (:dependency dependency))))
        (map :dependent)
        (distinct)))
 
-(defn dependencies [dependency-graph var]
+(defn immediate-dependencies [dependency-graph var]
   (->> dependency-graph
        (filter (fn [dependency]
                  (= var (:dependent dependency))))
