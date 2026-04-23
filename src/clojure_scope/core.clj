@@ -71,6 +71,12 @@
           {}
           dependency-graph))
 
+(defn dependents-by-var [dependency-graph]
+  (reduce (fn [acc {:keys [dependent dependency]}]
+            (update acc dependency (fnil conj []) dependent))
+          {}
+          dependency-graph))
+
 (defn colocated-test-vars [var-definitions var]
   (->> var-definitions
        (filter (fn [var-definition]
@@ -86,20 +92,23 @@
           (mapcat (partial colocated-test-vars var-definitions)
                   vars)))
 
+(defn transitive-related-vars [root-var related-vars-by-var]
+  (loop [pending (seq (get related-vars-by-var root-var))
+         visited #{root-var}
+         result #{}]
+    (if-let [current-var (first pending)]
+      (if (contains? visited current-var)
+        (recur (rest pending) visited result)
+        (recur (into (rest pending) (get related-vars-by-var current-var))
+               (conj visited current-var)
+               (conj result current-var)))
+      result)))
+
 (defn transitive-dependencies
   "returns all wars a given var depends on direclty and indirectly"
   [root-var dependency-graph]
-  (let [dependency-map (dependencies-by-var dependency-graph)]
-    (loop [pending (seq (get dependency-map root-var))
-           visited #{root-var}
-           result #{}]
-      (if-let [a-var (first pending)]
-        (if (contains? visited a-var)
-          (recur (rest pending) visited result)
-          (recur (into (rest pending) (get dependency-map a-var))
-                 (conj visited a-var)
-                 (conj result a-var)))
-        result))))
+  (transitive-related-vars root-var
+                           (dependencies-by-var dependency-graph)))
 
 (deftest test-transitive-dependencies
   (is (= #{["namespace" "c"]
@@ -117,7 +126,23 @@
 
 (defn transitive-dependents
   "returns all wars that depend on a given var direclty and indirectly"
-  [root-var dependency-graph])
+  [root-var dependency-graph]
+  (transitive-related-vars root-var
+                           (dependents-by-var dependency-graph)))
+
+(deftest test-transitive-dependents
+  (is (= #{["namespace" "a"]
+           ["namespace" "b"]
+           ["namespace" "e"]}
+         (transitive-dependents ["namespace" "c"]
+                                [{:dependent ["namespace" "a"]
+                                  :dependency ["namespace" "b"]}
+                                 {:dependent ["namespace" "b"]
+                                  :dependency ["namespace" "c"]}
+                                 {:dependent ["namespace" "b"]
+                                  :dependency ["namespace" "d"]}
+                                 {:dependent ["namespace" "e"]
+                                  :dependency ["namespace" "a"]}]))))
 
 (defn sort-by-dependencies
   "orders nodes so that the ones that come last depend on the earlier
