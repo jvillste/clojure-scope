@@ -3,12 +3,9 @@
    [clj-kondo.core :as kondo]
    [clojure-scope.line-region :as line-region]
    [clojure-scope.string-to-forms :as string-to-forms]
-   [clojure.edn :as edn]
    [clojure.java.io :as io]
-   [clojure.pprint :as pprint]
    [clojure.set :as set]
-   [clojure.test :refer [deftest is]]
-   [medley.core :as medley]))
+   [clojure.test :refer [deftest is]]))
 
 (defn analyze-folder [folder]
   (:analysis (kondo/run! {:lint [folder]
@@ -26,7 +23,7 @@
    ;; :filename filename
    :start-line row
    ;; :col col
-   :end-row end-row
+   :end-line end-row
    ;; :end-col end-col
    ;;:definition definition
    })
