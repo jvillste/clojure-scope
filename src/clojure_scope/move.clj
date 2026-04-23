@@ -149,7 +149,8 @@
                        :new-name dependency-name}]
 
       (and (nil? symbol-namespace)
-           (= dependency-namespace "clojure.core"))
+           (or (= dependency-namespace "clojure.core")
+               (= dependency-namespace "cljs.core")))
       [planning-state nil]
 
       (nil? symbol-namespace)
