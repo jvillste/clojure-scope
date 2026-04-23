@@ -65,17 +65,24 @@
          (sort-by (juxt :dependent :dependency))
          vec)))
 
-(defn dependencies-by-var [dependency-graph]
-  (reduce (fn [acc {:keys [dependent dependency]}]
-            (update acc dependent (fnil conj []) dependency))
+(defn- group-by-pair [dependency-graph key-field value-field]
+  (reduce (fn [acc entry]
+            (update acc (key-field entry) (fnil conj []) (value-field entry)))
           {}
           dependency-graph))
 
+(defn dependencies-by-var [dependency-graph]
+  (group-by-pair dependency-graph :dependent :dependency))
+
 (defn dependents-by-var [dependency-graph]
-  (reduce (fn [acc {:keys [dependent dependency]}]
-            (update acc dependency (fnil conj []) dependent))
-          {}
-          dependency-graph))
+  (group-by-pair dependency-graph :dependency :dependent))
+
+(deftest dependents-by-var-test
+  (is (= {["ns" "b"] [["ns" "a"]]
+          ["ns" "a"] [["ns" "c"]]}
+         (dependents-by-var
+          [{:dependent ["ns" "a"], :dependency ["ns" "b"]}
+           {:dependent ["ns" "c"], :dependency ["ns" "a"]}]))))
 
 (defn colocated-test-vars [var-definitions var]
   (->> var-definitions
