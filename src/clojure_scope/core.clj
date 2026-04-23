@@ -5,6 +5,7 @@
    [clojure-scope.string-to-forms :as string-to-forms]
    [clojure.java.io :as io]
    [clojure.set :as set]
+   [clojure.string :as string]
    [clojure.test :refer [deftest is]]))
 
 (defn analyze-folder [folder]
@@ -39,6 +40,26 @@
          (sort-by (juxt :namespace :name))
          vec)))
 
+(defn- top-level-var-form? [form]
+  (and (:name form)
+       (string/starts-with? (:kind form) "def")))
+
+(defn- top-level-definition-keys-by-file [file-names]
+  (into {}
+        (map (fn [file-name]
+               [file-name (->> (slurp file-name)
+                               (string-to-forms/string-to-forms)
+                               (filter top-level-var-form?)
+                               (map (juxt :name :end-line))
+                               set)]))
+        file-names))
+
+(defn- top-level-var-definition? [top-level-definitions-by-file var-definition]
+  (contains? (get top-level-definitions-by-file
+                  (:filename var-definition))
+             [(str (:name var-definition))
+              (:end-row var-definition)]))
+
 (defn- dependency [{:keys [from from-var to name row col filename]}]
   {:dependent [(str from) (str from-var)]
    :dependency [(str to) (str name)]
@@ -48,11 +69,15 @@
 
 (defn dependncy-graph [file-or-folder]
   (let [{:keys [var-definitions var-usages]} (analyze-folder file-or-folder)
-        definitions-by-id (into {}
-                                (map (juxt var-id identity))
-                                var-definitions)
+        top-level-definitions-by-file (top-level-definition-keys-by-file
+                                       (distinct (map :filename var-definitions)))
+        top-level-var-ids (->> var-definitions
+                               (filter (partial top-level-var-definition?
+                                                top-level-definitions-by-file))
+                               (map var-id)
+                               set)
         internal-var? (fn [[ns name]]
-                        (contains? definitions-by-id [ns name]))]
+                        (contains? top-level-var-ids [ns name]))]
     (->> var-usages
          (keep (fn [usage]
                  (when-let [source-var (:from-var usage)]

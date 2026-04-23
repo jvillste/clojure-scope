@@ -29,6 +29,23 @@
                   (dissoc dependency :file-name))
                 (sut/dependncy-graph (.getPath dir)))))))
 
+(deftest dependncy-graph-ignores-vars-defined-inside-comment-forms
+  (let [dir (create-temp-dir)
+        src-dir (io/file dir "src" "demo")
+        source-file (io/file src-dir "core.clj")]
+    (.mkdirs src-dir)
+    (spit source-file
+          (string/join "\n"
+                       ["(ns demo.core)"
+                        "(defn helper [] 1)"
+                        "(comment"
+                        "  (defn hidden [] (helper)))"
+                        "(defn main [] [(helper) (hidden)])"]))
+    (is (= [{:dependent ["demo.core" "main"], :dependency ["demo.core" "helper"], :line 5, :column 16}]
+           (map (fn [dependency]
+                  (dissoc dependency :file-name))
+                (sut/dependncy-graph (.getPath dir)))))))
+
 (deftest source-code-by-var-for-folder-test
   (let [dir (create-temp-dir)]
     (write-demo-source-file dir)
@@ -36,8 +53,6 @@
       (is (= "(defn a [] (b) c)" (get source-code-by-var ["demo.core" "a"])))
       (is (= "(defn b [] (c))" (get source-code-by-var ["demo.core" "b"])))
       (is (= "(defn c [] 1)" (get source-code-by-var ["demo.core" "c"]))))))
-
-
 
 (defn- write-lines! [path lines]
   (spit path (string/join "\n" lines)))
