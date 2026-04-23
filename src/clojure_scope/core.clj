@@ -80,6 +80,18 @@
 (defn dependents-by-var [dependency-graph]
   (group-by-pair dependency-graph :dependency :dependent))
 
+(defn dependents [dependency-graph var]
+  (->> dependency-graph
+       (filter (fn [dependency]
+                 (= var (:dependency dependency))))
+       (map :dependent)))
+
+(defn dependencies [dependency-graph var]
+  (->> dependency-graph
+       (filter (fn [dependency]
+                 (= var (:dependent dependency))))
+       (map :dependency)))
+
 (deftest dependents-by-var-test
   (is (= {["ns" "b"] [["ns" "a"]]
           ["ns" "a"] [["ns" "c"]]}
@@ -116,7 +128,7 @@
 
 (defn transitive-dependencies
   "returns all wars a given var depends on direclty and indirectly"
-  [root-var dependency-graph]
+  [dependency-graph root-var]
   (transitive-related-vars root-var
                            (dependencies-by-var dependency-graph)))
 
@@ -124,19 +136,19 @@
   (is (= #{["namespace" "c"]
            ["namespace" "b"]
            ["namespace" "d"]}
-         (transitive-dependencies ["namespace" "a"]
-                                  [{:dependent ["namespace" "a"],
+         (transitive-dependencies [{:dependent ["namespace" "a"],
                                     :dependency ["namespace" "b"]}
                                    {:dependent ["namespace" "b"],
                                     :dependency ["namespace" "c"]}
                                    {:dependent ["namespace" "b"],
                                     :dependency ["namespace" "d"]}
                                    {:dependent ["namespace" "e"],
-                                    :dependency ["namespace" "a"]}]))))
+                                    :dependency ["namespace" "a"]}]
+                                  ["namespace" "a"]))))
 
 (defn transitive-dependents
   "returns all wars that depend on a given var direclty and indirectly"
-  [root-var dependency-graph]
+  [dependency-graph root-var]
   (transitive-related-vars root-var
                            (dependents-by-var dependency-graph)))
 
@@ -144,15 +156,27 @@
   (is (= #{["namespace" "a"]
            ["namespace" "b"]
            ["namespace" "e"]}
-         (transitive-dependents ["namespace" "c"]
-                                [{:dependent ["namespace" "a"]
+         (transitive-dependents [{:dependent ["namespace" "a"]
                                   :dependency ["namespace" "b"]}
                                  {:dependent ["namespace" "b"]
                                   :dependency ["namespace" "c"]}
                                  {:dependent ["namespace" "b"]
                                   :dependency ["namespace" "d"]}
                                  {:dependent ["namespace" "e"]
-                                  :dependency ["namespace" "a"]}]))))
+                                  :dependency ["namespace" "a"]}]
+                                ["namespace" "c"]))))
+
+(defn root-dependents [dependency-graph vars]
+  (let [dependents-by-var (dependents-by-var dependency-graph)]
+    (->> vars
+         (remove (fn [var]
+                   (contains? dependents-by-var var))))))
+
+(defn root-dependencies [dependency-graph vars]
+  (let [dependencies-by-var (dependencies-by-var dependency-graph)]
+    (->> vars
+         (remove (fn [var]
+                   (contains? dependencies-by-var var))))))
 
 (defn sort-by-dependencies
   "orders nodes so that the ones that come last depend on the earlier
@@ -193,7 +217,7 @@
 
 
 (defn sorted-related-vars [var-definitions dependency-graph var]
-  (->> (transitive-dependencies var dependency-graph)
+  (->> (transitive-dependencies dependency-graph var)
        (concat [var])
        (add-colocated-test-vars var-definitions)
        (sort-by-dependencies dependency-graph)))
@@ -213,8 +237,8 @@
 
 (defn sorted-dependencies [dependncy-graph a-var]
   (sort-by-dependencies dependncy-graph
-                        (transitive-dependencies a-var
-                                                 dependncy-graph)))
+                        (transitive-dependencies dependncy-graph
+                                                 a-var)))
 
 
 (defn line-count [path]
