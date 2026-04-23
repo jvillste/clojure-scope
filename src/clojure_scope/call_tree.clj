@@ -147,7 +147,7 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
   but can be opended by clicking."
   [source-folder namespace name html-file-name]
   (spit (io/file html-file-name)
-        (tree-html (core/var-dependencies source-folder)
+        (tree-html (core/dependncy-graph source-folder)
                    namespace
                    name
                    (source-code-by-var-for-folder source-folder))))
@@ -179,7 +179,7 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
 (defn print-tree
   "prints a dependency tree starting from a given var"
   [source-folder namespace name]
-  (doseq [line (tree-lines (core/var-dependencies source-folder)
+  (doseq [line (tree-lines (core/dependncy-graph source-folder)
                            namespace name)]
     (println line)))
 

@@ -46,7 +46,7 @@
    :line row
    :column col})
 
-(defn var-dependencies [file-or-folder]
+(defn dependncy-graph [file-or-folder]
   (let [{:keys [var-definitions var-usages]} (analyze-folder file-or-folder)
         definitions-by-id (into {}
                                 (map (juxt var-id identity))
@@ -65,11 +65,11 @@
          (sort-by (juxt :dependent :dependency))
          vec)))
 
-(defn dependencies-by-var [dependencies]
+(defn dependencies-by-var [dependency-graph]
   (reduce (fn [acc {:keys [dependent dependency]}]
             (update acc dependent (fnil conj []) dependency))
           {}
-          dependencies))
+          dependency-graph))
 
 (defn colocated-test-vars [var-definitions var]
   (->> var-definitions
@@ -88,8 +88,8 @@
 
 (defn transitive-dependencies
   "returns all wars a given var depends on direclty and indirectly"
-  [root-var dependencies]
-  (let [dependency-map (dependencies-by-var dependencies)]
+  [root-var dependency-graph]
+  (let [dependency-map (dependencies-by-var dependency-graph)]
     (loop [pending (seq (get dependency-map root-var))
            visited #{root-var}
            result #{}]
@@ -116,11 +116,10 @@
                                     :dependency ["namespace" "a"]}]))))
 
 
-
 (defn sort-by-dependencies
   "orders nodes so that the ones that come last depend on the earlier
   ones."
-  [dependencies nodes]
+  [dependency-graph nodes]
   (let [node-set (set nodes)
         dependency-map (reduce (fn [dependency-map {:keys [dependent dependency]}]
                                  (if (and (contains? node-set dependent)
@@ -128,7 +127,7 @@
                                    (update dependency-map dependent (fnil conj #{}) dependency)
                                    dependency-map))
                                {}
-                               dependencies)]
+                               dependency-graph)]
     (loop [remaining nodes
            ordered []
            ordered-set #{}]
@@ -142,9 +141,9 @@
           (recur (remove #(= % next-node) remaining)
                  (conj ordered next-node)
                  (conj ordered-set next-node))
-          (throw (ex-info "Cannot sort nodes with cyclic dependencies"
+          (throw (ex-info "Cannot sort nodes with cyclic dependency-graph"
                           {:nodes nodes
-                           :dependencies dependencies})))))))
+                           :dependencies dependency-graph})))))))
 
 (deftest test-sort-by-dependencies
   (is (= [["namespace-1" "var-2"]
@@ -174,10 +173,10 @@
       (let [{:keys [start-line end-line]} (first matches)]
         (line-region/copy-line-region source-file target-file start-line end-line target-line)))))
 
-(defn sorted-dependencies [var-dependencies a-var]
-  (sort-by-dependencies var-dependencies
+(defn sorted-dependencies [dependncy-graph a-var]
+  (sort-by-dependencies dependncy-graph
                         (transitive-dependencies a-var
-                                                 var-dependencies)))
+                                                 dependncy-graph)))
 
 
 (defn line-count [path]
@@ -187,44 +186,44 @@
 (defn independent-vars
   "filter out vars that are required only by vars in the given var
   sequence"
-  [var-dependencies vars]
+  [dependncy-graph vars]
   (let [var-set (set vars)]
     (filter (fn [var]
-              (->> var-dependencies
+              (->> dependncy-graph
                    (filter (comp #{var} :dependency))
                    (map :dependent)
                    (remove var-set)
                    (empty?)))
             vars)))
 
-(defn distinct-var-dependencies [var-dependencies]
-  (->> var-dependencies
+(defn distinct-dependncy-graph [dependncy-graph]
+  (->> dependncy-graph
        (map (fn [var-dependency]
               (select-keys var-dependency [:dependency :dependent])))
        (distinct)))
 
-(deftest test-distinct-var-dependencies
+(deftest test-distinct-dependncy-graph
   (is (= '({:dependency ["ns" "b"], :dependent ["ns" "a"]})
-         (distinct-var-dependencies [{:dependent ["ns" "a"],
-                                      :dependency ["ns" "b"],
-                                      :line 1273,
-                                      :column 11}
-                                     {:dependent ["ns" "a"],
-                                      :dependency ["ns" "b"],
-                                      :line 1343,
-                                      :column 24}]))))
+         (distinct-dependncy-graph [{:dependent ["ns" "a"],
+                                     :dependency ["ns" "b"],
+                                     :line 1273,
+                                     :column 11}
+                                    {:dependent ["ns" "a"],
+                                     :dependency ["ns" "b"],
+                                     :line 1343,
+                                     :column 24}]))))
 
-(defn sorted-independent-dependencies [var-dependencies a-var]
-  (let [sorted-dependencies (sorted-dependencies var-dependencies
+(defn sorted-independent-dependencies [dependncy-graph a-var]
+  (let [sorted-dependencies (sorted-dependencies dependncy-graph
                                                  a-var)]
     (->> sorted-dependencies
-         (filter (set (independent-vars var-dependencies sorted-dependencies))))))
+         (filter (set (independent-vars dependncy-graph sorted-dependencies))))))
 
 (defn entangled-vars
   "filter out vars that are required also by other vars than the given vars"
-  [var-dependencies vars]
+  [dependncy-graph vars]
   (set/difference (set vars)
-                  (set (independent-vars var-dependencies vars))))
+                  (set (independent-vars dependncy-graph vars))))
 
 (deftest test-entangled-vars
   (is (= #{}
@@ -253,13 +252,13 @@
                            :dependency ["ns" "b"]}]
                          [["ns" "b"]]))))
 
-(defn entangled-dependencies [var-dependencies a-var]
-  (let [sorted-dependencies (sorted-dependencies var-dependencies
+(defn entangled-dependencies [dependncy-graph a-var]
+  (let [sorted-dependencies (sorted-dependencies dependncy-graph
                                                  a-var)]
     (->> sorted-dependencies
-         (filter (set (entangled-vars var-dependencies sorted-dependencies))))))
+         (filter (set (entangled-vars dependncy-graph sorted-dependencies))))))
 
 (comment
-  (sorted-dependencies (var-dependencies "src")
+  (sorted-dependencies (dependncy-graph "src")
                        ["clojure-scope.core" "sorted-dependencies"])
   )
