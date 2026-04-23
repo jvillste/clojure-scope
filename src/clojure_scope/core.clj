@@ -193,13 +193,13 @@
                                   :dependency ["namespace" "a"]}]
                                 ["namespace" "c"]))))
 
-(defn root-dependents [dependency-graph vars]
+(defn root-vars [dependency-graph vars]
   (let [dependents-by-var (dependents-by-var dependency-graph)]
     (->> vars
          (remove (fn [var]
                    (contains? dependents-by-var var))))))
 
-(defn root-dependencies [dependency-graph vars]
+(defn leaf-vars [dependency-graph vars]
   (let [dependencies-by-var (dependencies-by-var dependency-graph)]
     (->> vars
          (remove (fn [var]
