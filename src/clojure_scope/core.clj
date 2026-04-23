@@ -67,7 +67,10 @@
 
 (defn- group-by-pair [dependency-graph key-field value-field]
   (reduce (fn [acc entry]
-            (update acc (key-field entry) (fnil conj []) (value-field entry)))
+            (update acc
+                    (key-field entry)
+                    (fnil conj [])
+                    (value-field entry)))
           {}
           dependency-graph))
 
