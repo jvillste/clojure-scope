@@ -115,6 +115,9 @@
                                    {:dependent ["namespace" "e"],
                                     :dependency ["namespace" "a"]}]))))
 
+(defn transitive-dependents
+  "returns all wars that depend on a given var direclty and indirectly"
+  [root-var dependency-graph])
 
 (defn sort-by-dependencies
   "orders nodes so that the ones that come last depend on the earlier
