@@ -1,5 +1,6 @@
 (ns clojure-scope.core
   (:require
+   [medley.core :as medley]
    [clj-kondo.core :as kondo]
    [clojure-scope.line-region :as line-region]
    [clojure-scope.string-to-forms :as string-to-forms]
@@ -134,7 +135,8 @@
                          (:namespace var-definition))
                       (= (:name var-definition)
                          (str "test-" (second var)))
-                      (= "clojure.test/deftest" (:defined-by var-definition)))))
+                      (or (= "clojure.test/deftest" (:defined-by var-definition))
+                          (= "cljs.test/deftest" (:defined-by var-definition))))))
        (map var-definiton-to-var)))
 
 (defn add-colocated-test-vars [var-definitions vars]
@@ -437,19 +439,35 @@
                                  (remove (set immediate-dependencies))
                                  (remove (set leaf-dependencies)))]
 
-    {:independent-dependencies (independent-vars (:dependency-graph analysis)
-                                                 transitive-dependencies)
-     :entangled-dependencies (entangled-vars (:dependency-graph analysis)
-                                             transitive-dependencies)
+    (medley/map-vals sort
+                     {:independent-dependencies (independent-vars (:dependency-graph analysis)
+                                                                  transitive-dependencies)
+                      :entangled-dependencies (entangled-vars (:dependency-graph analysis)
+                                                              transitive-dependencies)
 
-     :dependents immediate-dependents
-     :root-dependents (sort root-dependents)
-     :middle-dependents (sort middle-dependents)
-     :immediate-dependents (sort immediate-dependents)
+                      :dependents immediate-dependents
+                      :root-dependents root-dependents
+                      :middle-dependents middle-dependents
+                      :immediate-dependents immediate-dependents
 
-     :immediate-dependencies (sort immediate-dependencies)
-     :middle-dependencies (sort middle-dependencies)
-     :leaf-dependencies (sort leaf-dependencies)}))
+                      :immediate-dependencies immediate-dependencies
+                      :middle-dependencies middle-dependencies
+                      :leaf-dependencies leaf-dependencies})))
+
+(defn filter-by-namespace [namespace analysis]
+  (-> analysis
+      (update :dependency-graph
+              (fn [dependency-graph]
+                (filter (fn [dependency]
+                          (and (= namespace (first (:dependent dependency)))
+                               (= namespace (first (:dependency dependency)))))
+                        dependency-graph)))
+      (update :var-definitions
+              (fn [var-definitions]
+                (filter (fn [var-definition]
+                          (= namespace (:namespace var-definition)))
+                        var-definitions)))))
+
 
 (comment
   (sorted-dependencies (dependncy-graph (clj-kondo-analysis "src"))
