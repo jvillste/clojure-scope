@@ -1,6 +1,7 @@
 (ns clojure-scope.move-test
   (:require
    [clojure-scope.move :as move]
+   [clojure-scope.test-utilities :as test-utilities]
    [clojure.java.io :as io]
    [clojure.string :as string]
    [clojure.test :refer [deftest is testing]]))
@@ -287,6 +288,34 @@
 
     (testing "missing target namespace file"
       (is (thrown-with-msg?
-            clojure.lang.ExceptionInfo
-            #"Target namespace file does not exist"
-            (move/move-vars source-folder [["demo.source" "moved"]] "demo.target"))))))
+           clojure.lang.ExceptionInfo
+           #"Target namespace file does not exist"
+           (move/move-vars source-folder [["demo.source" "moved"]] "demo.target"))))))
+
+(deftest move-var-handles-promesa-let-correctly
+  (let [directory (create-temp-dir)
+        source-folder (.getPath (io/file directory "src"))]
+    (write-source-file! directory
+                        "src/demo/source.cljs"
+                        (test-utilities/remove-indentation "(ns demo.source
+                                                              (:require [demo.state :as state]
+                                                                        [promesa :as promesa]))
+
+                                                            (defn moved [mesh]
+                                                              (promesa/let [state 1]))"))
+    (write-source-file! directory
+                        "src/demo/target.cljs"
+                        (str "(ns demo.target)\n"))
+
+    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+
+    (is (= (test-utilities/remove-indentation "(ns demo.source
+                                                 (:require [demo.state :as state]
+                                                           [promesa :as promesa]))
+                                ")
+           (read-file directory "src/demo/source.cljs")))
+    (is (= (test-utilities/remove-indentation "(ns demo.target (:require [demo.state :as state]))
+
+                                               (defn moved [mesh]
+                                                 (promesa/let [state 1]))")
+           (read-file directory "src/demo/target.cljs")))))
