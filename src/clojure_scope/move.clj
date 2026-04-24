@@ -148,6 +148,10 @@
                        :new-namespace-alias nil
                        :new-name dependency-name}]
 
+      (and (nil? (:to usage))
+           (= symbol-namespace "js"))
+      [planning-state nil]
+
       (and (nil? symbol-namespace)
            (or (= dependency-namespace "clojure.core")
                (= dependency-namespace "cljs.core")))
@@ -241,9 +245,9 @@
 (defn plan-external-reference-updates [analysis target-namespace moved-vars-set initial-planning-state]
   (reduce (fn [[planning-state reference-updates] usage]
             (let [[updated-planning-state reference-update] (plan-external-reference-update planning-state
-                                                                                           target-namespace
-                                                                                           moved-vars-set
-                                                                                           usage)]
+                                                                                            target-namespace
+                                                                                            moved-vars-set
+                                                                                            usage)]
               [updated-planning-state
                (cond-> reference-updates
                  reference-update (conj reference-update))]))
@@ -255,9 +259,9 @@
             (let [caller-var [(str (:from usage)) (str (:from-var usage))]]
               (if-let [copied-var (get copied-vars caller-var)]
                 (let [[updated-planning-state reference-update] (plan-internal-reference-update planning-state
-                                                                                               moved-vars-set
-                                                                                               copied-var
-                                                                                               usage)]
+                                                                                                moved-vars-set
+                                                                                                copied-var
+                                                                                                usage)]
                   [updated-planning-state
                    (cond-> reference-updates
                      reference-update (conj reference-update))])
@@ -272,7 +276,7 @@
   namespace must exist. The vars are appended to the target namespace
   file in the order they are given."
   [source-folder vars target-namespace]
-  (let [analysis (core/analyze-folder source-folder)
+  (let [analysis (core/kondo-analysis source-folder)
         _ (validate-move-request analysis vars target-namespace)
         definitions (definition-by-var-id analysis)
         target-file (get (namespace-file-by-name analysis) target-namespace)

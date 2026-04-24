@@ -162,6 +162,27 @@
                 "(defn moved [] (atom 1))")
            (read-file directory "src/demo/target.clj")))))
 
+(deftest move-var-keeps-javascript-references-unqualified-in-cljs-files
+  (let [directory (create-temp-dir)
+        source-folder (.getPath (io/file directory "src"))]
+    (write-source-file! directory
+                        "src/demo/source.cljs"
+                        (str "(ns demo.source)\n"
+                             "\n"
+                             "(defn moved [] (js/Date.now))\n"))
+    (write-source-file! directory
+                        "src/demo/target.cljs"
+                        (str "(ns demo.target)\n"))
+
+    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+
+    (is (= (str "(ns demo.source)\n")
+           (read-file directory "src/demo/source.cljs")))
+    (is (= (str "(ns demo.target)\n"
+                "\n"
+                "(defn moved [] (js/Date.now))")
+           (read-file directory "src/demo/target.cljs")))))
+
 (deftest move-one-var-reuses-existing-target-alias-in-caller
   (let [directory (create-temp-dir)
         source-folder (.getPath (io/file directory "src"))]
