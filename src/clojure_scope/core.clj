@@ -8,7 +8,7 @@
    [clojure.string :as string]
    [clojure.test :refer [deftest is testing]]))
 
-(defn analyze-folder [folder]
+(defn kondo-analysis [folder]
   (:analysis (kondo/run! {:lint [folder]
                           :skip-lint true
                           :config {:analysis true}})))
@@ -54,7 +54,7 @@
               (:end-row var-definition)]))
 
 (defn var-definitions [file-or-folder]
-  (let [{:keys [var-definitions]} (analyze-folder file-or-folder)
+  (let [{:keys [var-definitions]} (kondo-analysis file-or-folder)
         top-level-definitions-by-file (top-level-definition-keys-by-file
                                        (distinct (map :filename var-definitions)))]
     (->> var-definitions
@@ -72,7 +72,7 @@
    :column col})
 
 (defn dependncy-graph [file-or-folder]
-  (let [{:keys [var-usages]} (analyze-folder file-or-folder)
+  (let [{:keys [var-usages]} (kondo-analysis file-or-folder)
         internal-vars (->> (var-definitions file-or-folder)
                            (map var-definiton-to-var)
                            set)

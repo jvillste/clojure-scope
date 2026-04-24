@@ -135,7 +135,7 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
         definitions-by-id))
 
 (defn source-code-by-var-for-folder [source-folder]
-  (let [{:keys [var-definitions]} (core/analyze-folder source-folder)
+  (let [{:keys [var-definitions]} (core/kondo-analysis source-folder)
         definitions-by-id (into {}
                                 (map (juxt core/var-id identity))
                                 var-definitions)]
