@@ -402,6 +402,10 @@
     (->> sorted-dependencies
          (filter (set (entangled-vars dependncy-graph sorted-dependencies))))))
 
+(defn analysis [file-or-directory]
+  {:dependency-graph (dependncy-graph file-or-directory)
+   :var-definitions (var-definitions file-or-directory)})
+
 (comment
   (sorted-dependencies (dependncy-graph "src")
                        ["clojure-scope.core" "sorted-dependencies"])
