@@ -409,18 +409,24 @@
   {:dependency-graph (dependncy-graph clj-kondo-analysis-result)
    :var-definitions (var-definitions clj-kondo-analysis-result)})
 
-(defn inspect-vars [analysis]
-  {:root-vars (root-vars (:dependency-graph analysis)
-                         (->> (:var-definitions analysis)
-                              (remove (comp #{"cljs.test/deftest"}
-                                            :defined-by))
-                              (map var-definiton-to-var)))
-   :tests (->> (:var-definitions analysis)
-               (filter (comp #{"cljs.test/deftest"}
-                             :defined-by))
-               (map var-definiton-to-var))
-   :leaf-vars (leaf-vars (:dependency-graph analysis)
-                         (map var-definiton-to-var (:var-definitions analysis)))})
+(defn inspect-vars [analysis & [{:keys [namespace]}]]
+  (->> {:root-vars (->> (:var-definitions analysis)
+                        (remove (comp #{"cljs.test/deftest"}
+                                      :defined-by))
+                        (map var-definiton-to-var)
+                        (root-vars (:dependency-graph analysis)))
+        :tests (->> (:var-definitions analysis)
+                    (filter (comp #{"cljs.test/deftest"}
+                                  :defined-by))
+                    (map var-definiton-to-var))
+        :leaf-vars (leaf-vars (:dependency-graph analysis)
+                              (map var-definiton-to-var (:var-definitions analysis)))}
+       (medley/map-vals (fn [vars]
+                          (filter (fn [var]
+                                    (if namespace
+                                      (= namespace (first var))
+                                      true))
+                                  vars)))))
 
 (defn inspect-var [analysis var]
   (let [immediate-dependents (immediate-dependents (:dependency-graph analysis) var)
