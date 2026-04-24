@@ -302,7 +302,7 @@
                                                                         [promesa :as promesa]))
 
                                                             (defn moved [mesh]
-                                                              (promesa/let [state 1]))"))
+                                                              (promesa/let [state 1] state))"))
     (write-source-file! directory
                         "src/demo/target.cljs"
                         (str "(ns demo.target)\n"))
@@ -317,5 +317,5 @@
     (is (= (test-utilities/remove-indentation "(ns demo.target (:require [demo.state :as state]))
 
                                                (defn moved [mesh]
-                                                 (promesa/let [state 1]))")
+                                                 (promesa/let [state 1] state))")
            (read-file directory "src/demo/target.cljs")))))
