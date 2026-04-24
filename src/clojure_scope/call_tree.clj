@@ -135,7 +135,7 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
         definitions-by-id))
 
 (defn source-code-by-var-for-folder [source-folder]
-  (let [{:keys [var-definitions]} (core/kondo-analysis source-folder)
+  (let [{:keys [var-definitions]} (core/clj-kondo-analysis source-folder)
         definitions-by-id (into {}
                                 (map (juxt core/var-id identity))
                                 var-definitions)]
@@ -147,7 +147,7 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
   but can be opended by clicking."
   [source-folder namespace name html-file-name]
   (spit (io/file html-file-name)
-        (tree-html (core/dependncy-graph source-folder)
+        (tree-html (core/dependncy-graph (core/clj-kondo-analysis source-folder))
                    namespace
                    name
                    (source-code-by-var-for-folder source-folder))))
@@ -179,7 +179,7 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
 (defn print-tree
   "prints a dependency tree starting from a given var"
   [source-folder namespace name]
-  (doseq [line (tree-lines (core/dependncy-graph source-folder)
+  (doseq [line (tree-lines (core/dependncy-graph (core/clj-kondo-analysis source-folder))
                            namespace name)]
     (println line)))
 

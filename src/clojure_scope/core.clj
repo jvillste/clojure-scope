@@ -8,10 +8,11 @@
    [clojure.string :as string]
    [clojure.test :refer [deftest is testing]]))
 
-(defn kondo-analysis [folder]
+(defn clj-kondo-analysis [folder & [{:keys [clj-kondo-config]}]]
   (:analysis (kondo/run! {:lint [folder]
                           :skip-lint true
-                          :config {:analysis true}})))
+                          :config (merge {:analysis true}
+                                         clj-kondo-config)})))
 
 (defn var-id [{:keys [ns name]}]
   [(str ns) (str name)])
@@ -53,8 +54,8 @@
              [(str (:name var-definition))
               (:end-row var-definition)]))
 
-(defn var-definitions [file-or-folder]
-  (let [{:keys [var-definitions]} (kondo-analysis file-or-folder)
+(defn var-definitions [clj-kondo-analysis-result]
+  (let [{:keys [var-definitions]} clj-kondo-analysis-result
         top-level-definitions-by-file (top-level-definition-keys-by-file
                                        (distinct (map :filename var-definitions)))]
     (->> var-definitions
@@ -71,9 +72,9 @@
    :line row
    :column col})
 
-(defn dependncy-graph [file-or-folder]
-  (let [{:keys [var-usages]} (kondo-analysis file-or-folder)
-        internal-vars (->> (var-definitions file-or-folder)
+(defn dependncy-graph [clj-kondo-analysis-result]
+  (let [{:keys [var-usages]} clj-kondo-analysis-result
+        internal-vars (->> (var-definitions clj-kondo-analysis-result)
                            (map var-definiton-to-var)
                            set)
         internal-var? (fn [[namespace name]]
@@ -402,9 +403,9 @@
     (->> sorted-dependencies
          (filter (set (entangled-vars dependncy-graph sorted-dependencies))))))
 
-(defn analysis [file-or-directory]
-  {:dependency-graph (dependncy-graph file-or-directory)
-   :var-definitions (var-definitions file-or-directory)})
+(defn analysis [clj-kondo-analysis-result]
+  {:dependency-graph (dependncy-graph clj-kondo-analysis-result)
+   :var-definitions (var-definitions clj-kondo-analysis-result)})
 
 (defn inspect-vars [analysis]
   {:root-vars (root-vars (:dependency-graph analysis)
@@ -437,9 +438,9 @@
                                  (remove (set leaf-dependencies)))]
 
     {:independent-dependencies (independent-vars (:dependency-graph analysis)
-                                                               transitive-dependencies)
+                                                 transitive-dependencies)
      :entangled-dependencies (entangled-vars (:dependency-graph analysis)
-                                                           transitive-dependencies)
+                                             transitive-dependencies)
 
      :dependents immediate-dependents
      :root-dependents (sort root-dependents)
@@ -451,6 +452,6 @@
      :leaf-dependencies (sort leaf-dependencies)}))
 
 (comment
-  (sorted-dependencies (dependncy-graph "src")
+  (sorted-dependencies (dependncy-graph (clj-kondo-analysis "src"))
                        ["clojure-scope.core" "sorted-dependencies"])
   )

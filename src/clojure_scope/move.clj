@@ -103,7 +103,7 @@
                                                                                        (:name-col usage))]
                                 (when (and candidate-location
                                            (symbol-matches-usage-name? (zip/sexpr candidate-location)
-                                                                      expected-name))
+                                                                       expected-name))
                                   candidate-location)))
                             (when (and (:row usage)
                                        (:col usage))
@@ -112,7 +112,7 @@
                                                                                        (:col usage))]
                                 (when (and candidate-location
                                            (symbol-matches-usage-name? (zip/sexpr candidate-location)
-                                                                      expected-name))
+                                                                       expected-name))
                                   candidate-location)))
                             (when (and (:row usage)
                                        (:col usage)
@@ -332,21 +332,20 @@
   form [\"namespace\" \"name\"] The file corresponding the target
   namespace must exist. The vars are appended to the target namespace
   file in the order they are given."
-  [source-folder vars target-namespace]
-  (let [analysis (core/kondo-analysis source-folder)
-        _ (validate-move-request analysis vars target-namespace)
-        definitions (definition-by-var-id analysis)
-        target-file (get (namespace-file-by-name analysis) target-namespace)
+  [clj-kondo-analysis-result vars target-namespace]
+  (let [_ (validate-move-request clj-kondo-analysis-result vars target-namespace)
+        definitions (definition-by-var-id clj-kondo-analysis-result)
+        target-file (get (namespace-file-by-name clj-kondo-analysis-result) target-namespace)
         moved-vars-set (set vars)
-        initial-planning-state (planning-state analysis)
-        [external-planning-state external-reference-updates] (plan-external-reference-updates analysis
+        initial-planning-state (planning-state clj-kondo-analysis-result)
+        [external-planning-state external-reference-updates] (plan-external-reference-updates clj-kondo-analysis-result
                                                                                               target-namespace
                                                                                               moved-vars-set
                                                                                               initial-planning-state)]
     (apply-alias-additions! (:alias-additions external-planning-state))
     (apply-reference-updates! external-reference-updates)
     (let [copied-vars (copy-vars! definitions target-file vars)
-          [internal-planning-state internal-reference-updates] (plan-internal-reference-updates analysis
+          [internal-planning-state internal-reference-updates] (plan-internal-reference-updates clj-kondo-analysis-result
                                                                                                 copied-vars
                                                                                                 moved-vars-set
                                                                                                 external-planning-state)

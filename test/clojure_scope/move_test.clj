@@ -2,6 +2,7 @@
   (:require
    [clojure-scope.move :as move]
    [clojure-scope.test-utilities :as test-utilities]
+   [clojure-scope.core :as clojure-scope]
    [clojure.java.io :as io]
    [clojure.string :as string]
    [clojure.test :refer [deftest is testing]]))
@@ -43,7 +44,9 @@
                              "\n"
                              "(defn use-it [] (source/moved))\n"))
 
-    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+    (move/move-vars (clojure-scope/clj-kondo-analysis source-folder)
+                    [["demo.source" "moved"]]
+                    "demo.target")
 
     (is (= (str "(ns demo.source)\n")
            (read-file directory "src/demo/source.clj")))
@@ -73,7 +76,7 @@
                         "src/demo/target.clj"
                         (str "(ns demo.target)\n"))
 
-    (move/move-vars source-folder
+    (move/move-vars (clojure-scope/clj-kondo-analysis source-folder)
                     [["demo.source" "helper"]
                      ["demo.source" "moved"]]
                     "demo.target")
@@ -101,7 +104,9 @@
                         "src/demo/target.clj"
                         (str "(ns demo.target)\n"))
 
-    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+    (move/move-vars (clojure-scope/clj-kondo-analysis source-folder)
+                    [["demo.source" "moved"]]
+                    "demo.target")
 
     (is (= (str "(ns demo.source)\n"
                 "\n"
@@ -136,7 +141,9 @@
                         (str "(ns demo.target\n"
                              "  (:require [other.util :as util]))\n"))
 
-    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+    (move/move-vars (clojure-scope/clj-kondo-analysis source-folder)
+                    [["demo.source" "moved"]]
+                    "demo.target")
 
     (is (= (str "(ns demo.target\n"
                 "  (:require [other.util :as util] [demo.util :as util1]))\n"
@@ -156,7 +163,9 @@
                         "src/demo/target.clj"
                         (str "(ns demo.target)\n"))
 
-    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+    (move/move-vars (clojure-scope/clj-kondo-analysis source-folder)
+                    [["demo.source" "moved"]]
+                    "demo.target")
 
     (is (= (str "(ns demo.target)\n"
                 "\n"
@@ -175,7 +184,9 @@
                         "src/demo/target.cljs"
                         (str "(ns demo.target)\n"))
 
-    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+    (move/move-vars (clojure-scope/clj-kondo-analysis source-folder)
+                    [["demo.source" "moved"]]
+                    "demo.target")
 
     (is (= (str "(ns demo.source)\n")
            (read-file directory "src/demo/source.cljs")))
@@ -203,7 +214,9 @@
                              "\n"
                              "(defn use-it [] (source/moved))\n"))
 
-    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+    (move/move-vars (clojure-scope/clj-kondo-analysis source-folder)
+                    [["demo.source" "moved"]]
+                    "demo.target")
 
     (is (= (str "(ns demo.caller\n"
                 "  (:require [demo.source :as source]\n"
@@ -234,7 +247,9 @@
                         "src/demo/target.cljs"
                         (str "(ns demo.target)\n"))
 
-    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+    (move/move-vars (clojure-scope/clj-kondo-analysis source-folder)
+                    [["demo.source" "moved"]]
+                    "demo.target")
 
     (is (= (str "(ns demo.source\n"
                 "  (:require [demo.state :as state]))\n"
@@ -263,7 +278,9 @@
                         "src/demo/target.cljs"
                         (str "(ns demo.target)\n"))
 
-    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+    (move/move-vars (clojure-scope/clj-kondo-analysis source-folder)
+                    [["demo.source" "moved"]]
+                    "demo.target")
 
     (is (= (str "(ns demo.source)\n")
            (read-file directory "src/demo/source.cljs")))
@@ -290,7 +307,9 @@
       (is (thrown-with-msg?
            clojure.lang.ExceptionInfo
            #"Target namespace file does not exist"
-           (move/move-vars source-folder [["demo.source" "moved"]] "demo.target"))))))
+           (move/move-vars (clojure-scope/clj-kondo-analysis source-folder)
+                           [["demo.source" "moved"]]
+                           "demo.target"))))))
 
 (deftest move-var-handles-promesa-let-correctly
   (let [directory (create-temp-dir)
@@ -307,14 +326,18 @@
                         "src/demo/target.cljs"
                         (str "(ns demo.target)\n"))
 
-    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+    (move/move-vars (clojure-scope/clj-kondo-analysis source-folder
+                                                      {:clj-kondo-config {:lint-as {'promesa/let 'clojure.core/let}}})
+
+                    [["demo.source" "moved"]]
+                    "demo.target")
 
     (is (= (test-utilities/remove-indentation "(ns demo.source
                                                  (:require [demo.state :as state]
                                                            [promesa :as promesa]))
                                 ")
            (read-file directory "src/demo/source.cljs")))
-    (is (= (test-utilities/remove-indentation "(ns demo.target (:require [demo.state :as state]))
+    (is (= (test-utilities/remove-indentation "(ns demo.target)
 
                                                (defn moved [mesh]
                                                  (promesa/let [state 1] state))")

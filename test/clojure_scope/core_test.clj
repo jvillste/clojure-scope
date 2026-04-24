@@ -27,7 +27,7 @@
             {:dependent ["demo.core" "b"], :dependency ["demo.core" "c"], :line 3, :column 12}]
            (map (fn [dependency]
                   (dissoc dependency :file-name))
-                (sut/dependncy-graph (.getPath dir)))))))
+                (sut/dependncy-graph (sut/clj-kondo-analysis (.getPath dir))))))))
 
 (deftest var-definitions-ignore-vars-defined-inside-comment-forms
   (let [dir (create-temp-dir)
@@ -43,7 +43,7 @@
                         "(defn main [] [(helper) (hidden)])"]))
     (is (= [{:namespace "demo.core", :name "helper", :defined-by "clojure.core/defn", :start-line 2, :end-line 2}
             {:namespace "demo.core", :name "main", :defined-by "clojure.core/defn", :start-line 5, :end-line 5}]
-           (sut/var-definitions (.getPath dir))))))
+           (sut/var-definitions (sut/clj-kondo-analysis (.getPath dir)))))))
 
 (deftest dependncy-graph-ignores-vars-defined-inside-comment-forms
   (let [dir (create-temp-dir)
@@ -60,7 +60,7 @@
     (is (= [{:dependent ["demo.core" "main"], :dependency ["demo.core" "helper"], :line 5, :column 16}]
            (map (fn [dependency]
                   (dissoc dependency :file-name))
-                (sut/dependncy-graph (.getPath dir)))))))
+                (sut/dependncy-graph (sut/clj-kondo-analysis (.getPath dir))))))))
 
 (deftest source-code-by-var-for-folder-test
   (let [dir (create-temp-dir)]
