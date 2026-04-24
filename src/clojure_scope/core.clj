@@ -428,7 +428,7 @@
                                       true))
                                   vars)))))
 
-(defn inspect-var [analysis var]
+(defn inspect-var [analysis var & [{:keys [namespace]}]]
   (let [immediate-dependents (immediate-dependents (:dependency-graph analysis) var)
         transitive-dependents (->> (transitive-dependents (:dependency-graph analysis) var)
                                    (add-colocated-test-vars (:var-definitions analysis)))
@@ -445,20 +445,26 @@
                                  (remove (set immediate-dependencies))
                                  (remove (set leaf-dependencies)))]
 
-    (medley/map-vals sort
-                     {:independent-dependencies (independent-vars (:dependency-graph analysis)
-                                                                  transitive-dependencies)
-                      :entangled-dependencies (entangled-vars (:dependency-graph analysis)
-                                                              transitive-dependencies)
+    (->> {:independent-dependencies (independent-vars (:dependency-graph analysis)
+                                                      transitive-dependencies)
+          :entangled-dependencies (entangled-vars (:dependency-graph analysis)
+                                                  transitive-dependencies)
 
-                      :dependents immediate-dependents
-                      :root-dependents root-dependents
-                      :middle-dependents middle-dependents
-                      :immediate-dependents immediate-dependents
+          :dependents immediate-dependents
+          :root-dependents root-dependents
+          :middle-dependents middle-dependents
+          :immediate-dependents immediate-dependents
 
-                      :immediate-dependencies immediate-dependencies
-                      :middle-dependencies middle-dependencies
-                      :leaf-dependencies leaf-dependencies})))
+          :immediate-dependencies immediate-dependencies
+          :middle-dependencies middle-dependencies
+          :leaf-dependencies leaf-dependencies}
+         (medley/map-vals sort)
+         (medley/map-vals (fn [vars]
+                            (filter (fn [var]
+                                      (if namespace
+                                        (= namespace (first var))
+                                        true))
+                                    vars))))))
 
 (defn filter-by-namespace [namespace analysis]
   (-> analysis
