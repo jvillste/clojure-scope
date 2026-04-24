@@ -16,7 +16,8 @@
            (<= left-column right-column))))
 
 (defn position-within-range? [line column {:keys [row col end-row end-col]}]
-  (and (position-before-or-equal? row col line column)
+  (and (every? some? [line column row col end-row end-col])
+       (position-before-or-equal? row col line column)
        (position-before-or-equal? line column end-row end-col)))
 
 (defn symbol-at-position? [location line column]
@@ -35,6 +36,38 @@
       nil
 
       (symbol-at-position? location line column)
+      location
+
+      :else
+      (recur (zip/next location)))))
+
+(defn position-ranges-overlap?
+  [left-start-line left-start-column left-end-line left-end-column
+   right-start-line right-start-column right-end-line right-end-column]
+  (and (every? some? [left-start-line left-start-column left-end-line left-end-column
+                      right-start-line right-start-column right-end-line right-end-column])
+       (position-before-or-equal? left-start-line left-start-column right-end-line right-end-column)
+       (position-before-or-equal? right-start-line right-start-column left-end-line left-end-column)))
+
+(defn symbol-overlaps-range? [location start-line start-column end-line end-column]
+  (let [{:keys [row col end-row end-col]} (meta (zip/node location))]
+    (and location
+         (zip/sexpr-able? location)
+         (symbol? (zip/sexpr location))
+         (position-ranges-overlap? row col end-row end-col
+                                   start-line start-column end-line end-column))))
+
+(defn find-symbol-location-in-range-by-name [root-location start-line start-column end-line end-column expected-name]
+  (loop [location root-location]
+    (cond
+      (nil? location)
+      nil
+
+      (zip/end? location)
+      nil
+
+      (and (symbol-overlaps-range? location start-line start-column end-line end-column)
+           (= (name (zip/sexpr location)) expected-name))
       location
 
       :else

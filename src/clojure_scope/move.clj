@@ -80,11 +80,51 @@
                         {:target-namespace target-namespace
                          :var [source-namespace _]}))))))
 
-(defn symbol-at-reference [file-name line column]
-  (let [root-location (zip/of-string (slurp file-name))
-        symbol-location (reference/find-symbol-location root-location line column)]
-    (when symbol-location
-      (zip/sexpr symbol-location))))
+(defn symbol-reference-details [symbol-location]
+  (when symbol-location
+    (let [{:keys [row col]} (meta (zip/node symbol-location))]
+      {:line row
+       :column col
+       :symbol (zip/sexpr symbol-location)})))
+
+(defn symbol-matches-usage-name? [symbol expected-name]
+  (or (= (name symbol)
+         expected-name)
+      (= (str symbol)
+         expected-name)))
+
+(defn symbol-reference-for-usage [usage]
+  (let [root-location (zip/of-string (slurp (:filename usage)))
+        expected-name (str (:name usage))
+        symbol-location (or (when (and (:name-row usage)
+                                       (:name-col usage))
+                              (let [candidate-location (reference/find-symbol-location root-location
+                                                                                       (:name-row usage)
+                                                                                       (:name-col usage))]
+                                (when (and candidate-location
+                                           (symbol-matches-usage-name? (zip/sexpr candidate-location)
+                                                                      expected-name))
+                                  candidate-location)))
+                            (when (and (:row usage)
+                                       (:col usage))
+                              (let [candidate-location (reference/find-symbol-location root-location
+                                                                                       (:row usage)
+                                                                                       (:col usage))]
+                                (when (and candidate-location
+                                           (symbol-matches-usage-name? (zip/sexpr candidate-location)
+                                                                      expected-name))
+                                  candidate-location)))
+                            (when (and (:row usage)
+                                       (:col usage)
+                                       (:end-row usage)
+                                       (:end-col usage))
+                              (reference/find-symbol-location-in-range-by-name root-location
+                                                                               (:row usage)
+                                                                               (:col usage)
+                                                                               (:end-row usage)
+                                                                               (:end-col usage)
+                                                                               expected-name)))]
+    (symbol-reference-details symbol-location)))
 
 (defn reserve-alias [planning-state file-name namespace-name preferred-alias]
   (if-let [existing-alias (get-in planning-state [:aliases-by-file-and-namespace file-name namespace-name])]
@@ -110,23 +150,26 @@
     (if (or (not (contains? moved-vars-set dependency-var))
             (contains? moved-vars-set [calling-namespace (str (:from-var usage))]))
       [planning-state nil]
-      (if (= calling-namespace target-namespace)
-        [planning-state {:file-name (:filename usage)
-                         :line (:name-row usage)
-                         :column (:name-col usage)
-                         :new-namespace-alias nil
-                         :new-name (str (:name usage))}]
-        (let [[updated-planning-state target-alias] (reserve-alias planning-state
-                                                                   (:filename usage)
-                                                                   target-namespace
-                                                                   nil)]
-          [updated-planning-state {:file-name (:filename usage)
-                                   :line (:name-row usage)
-                                   :column (:name-col usage)
-                                   :new-namespace-alias target-alias
-                                   :new-name (str (:name usage))}])))))
+      (let [{:keys [line column]} (or (symbol-reference-for-usage usage)
+                                      (throw (ex-info "Could not resolve symbol location for external usage."
+                                                      {:usage usage})))]
+        (if (= calling-namespace target-namespace)
+          [planning-state {:file-name (:filename usage)
+                           :line line
+                           :column column
+                           :new-namespace-alias nil
+                           :new-name (str (:name usage))}]
+          (let [[updated-planning-state target-alias] (reserve-alias planning-state
+                                                                     (:filename usage)
+                                                                     target-namespace
+                                                                     nil)]
+            [updated-planning-state {:file-name (:filename usage)
+                                     :line line
+                                     :column column
+                                     :new-namespace-alias target-alias
+                                     :new-name (str (:name usage))}]))))))
 
-(defn copied-line-for-usage [copied-var line]
+(defn copied-line-for-source-line [copied-var line]
   (+ (:target-start-line copied-var)
      (- line (:source-start-line copied-var))))
 
@@ -134,28 +177,42 @@
   (let [dependency-namespace (str (:to usage))
         dependency-name (str (:name usage))
         dependency-var [dependency-namespace dependency-name]
-        symbol (symbol-at-reference (:source-file copied-var)
-                                    (:name-row usage)
-                                    (:name-col usage))
-        symbol-namespace (namespace symbol)
-        rewritten-line (copied-line-for-usage copied-var (:name-row usage))
-        rewritten-column (:name-col usage)]
+        {:keys [line column symbol] :as symbol-reference} (symbol-reference-for-usage
+                                                           (assoc usage :filename (:source-file copied-var)))
+        symbol-namespace (some-> symbol namespace)
+        rewritten-line (some->> line
+                                (copied-line-for-source-line copied-var))
+        rewritten-column column]
     (cond
       (contains? moved-vars-set dependency-var)
-      [planning-state {:file-name (:target-file copied-var)
-                       :line rewritten-line
-                       :column rewritten-column
-                       :new-namespace-alias nil
-                       :new-name dependency-name}]
+      (if symbol-reference
+        [planning-state {:file-name (:target-file copied-var)
+                         :line rewritten-line
+                         :column rewritten-column
+                         :new-namespace-alias nil
+                         :new-name dependency-name}]
+        (throw (ex-info "Could not resolve symbol location for moved internal usage."
+                        {:usage usage
+                         :source-file (:source-file copied-var)})))
 
       (and (nil? (:to usage))
            (= symbol-namespace "js"))
+      [planning-state nil]
+
+      (and (nil? symbol-reference)
+           (or (= dependency-namespace "clojure.core")
+               (= dependency-namespace "cljs.core")))
       [planning-state nil]
 
       (and (nil? symbol-namespace)
            (or (= dependency-namespace "clojure.core")
                (= dependency-namespace "cljs.core")))
       [planning-state nil]
+
+      (nil? symbol-reference)
+      (throw (ex-info "Could not resolve symbol location for internal usage."
+                      {:usage usage
+                       :source-file (:source-file copied-var)}))
 
       (nil? symbol-namespace)
       (let [[updated-planning-state alias] (reserve-alias planning-state

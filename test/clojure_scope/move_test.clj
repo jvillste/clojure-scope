@@ -211,6 +211,71 @@
                 "(defn use-it [] (target/moved))\n")
            (read-file directory "src/demo/caller.clj")))))
 
+(deftest move-var-handles-operator-usages-without-name-location
+  (let [directory (create-temp-dir)
+        source-folder (.getPath (io/file directory "src"))]
+    (write-source-file! directory
+                        "src/demo/state.cljs"
+                        (str "(ns demo.state)\n"
+                             "\n"
+                             "(def state-atom (atom {}))\n"))
+    (write-source-file! directory
+                        "src/demo/source.cljs"
+                        (str "(ns demo.source\n"
+                             "  (:require [demo.state :as state]))\n"
+                             "\n"
+                             "(defn left-behind [state] 1)\n"
+                             "\n"
+                             "(defn moved []\n"
+                             "  (let [size (left-behind @state/state-atom)]\n"
+                             "    size))\n"))
+    (write-source-file! directory
+                        "src/demo/target.cljs"
+                        (str "(ns demo.target)\n"))
+
+    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+
+    (is (= (str "(ns demo.source\n"
+                "  (:require [demo.state :as state]))\n"
+                "\n"
+                "(defn left-behind [state] 1)\n")
+           (read-file directory "src/demo/source.cljs")))
+    (let [target-file (read-file directory "src/demo/target.cljs")]
+      (is (string/includes? target-file "[demo.source :as source]"))
+      (is (string/includes? target-file "[demo.state :as state]"))
+      (is (string/includes? target-file "(defn moved []\n  (let [size (source/left-behind @state/state-atom)]\n    size))")))))
+
+(deftest move-var-handles-core-function-usages-without-name-location
+  (let [directory (create-temp-dir)
+        source-folder (.getPath (io/file directory "src"))]
+    (write-source-file! directory
+                        "src/demo/source.cljs"
+                        (str "(ns demo.source)\n"
+                             "\n"
+                             "(defn moved [mesh]\n"
+                             "  (let [vertices (:vertices mesh)]\n"
+                             "    {:min (reduce (fn [minimum vertex]\n"
+                             "                    (mapv min minimum vertex))\n"
+                             "                  (first vertices)\n"
+                             "                  (rest vertices))}))\n"))
+    (write-source-file! directory
+                        "src/demo/target.cljs"
+                        (str "(ns demo.target)\n"))
+
+    (move/move-vars source-folder [["demo.source" "moved"]] "demo.target")
+
+    (is (= (str "(ns demo.source)\n")
+           (read-file directory "src/demo/source.cljs")))
+    (is (= (str "(ns demo.target)\n"
+                "\n"
+                "(defn moved [mesh]\n"
+                "  (let [vertices (:vertices mesh)]\n"
+                "    {:min (reduce (fn [minimum vertex]\n"
+                "                    (mapv min minimum vertex))\n"
+                "                  (first vertices)\n"
+                "                  (rest vertices))}))")
+           (read-file directory "src/demo/target.cljs")))))
+
 (deftest move-vars-validates-input
   (let [directory (create-temp-dir)
         source-folder (.getPath (io/file directory "src"))]
