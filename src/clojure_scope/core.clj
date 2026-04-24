@@ -406,6 +406,50 @@
   {:dependency-graph (dependncy-graph file-or-directory)
    :var-definitions (var-definitions file-or-directory)})
 
+(defn inspect-vars [analysis]
+  {:root-vars (root-vars (:dependency-graph analysis)
+                         (->> (:var-definitions analysis)
+                              (remove (comp #{"cljs.test/deftest"}
+                                            :defined-by))
+                              (map var-definiton-to-var)))
+   :tests (->> (:var-definitions analysis)
+               (filter (comp #{"cljs.test/deftest"}
+                             :defined-by))
+               (map var-definiton-to-var))
+   :leaf-vars (leaf-vars (:dependency-graph analysis)
+                         (map var-definiton-to-var (:var-definitions analysis)))})
+
+(defn inspect-var [analysis var]
+  (let [immediate-dependents (immediate-dependents (:dependency-graph analysis) var)
+        transitive-dependents (->> (transitive-dependents (:dependency-graph analysis) var)
+                                   (add-colocated-test-vars (:var-definitions analysis)))
+        root-dependents (root-vars (:dependency-graph analysis) transitive-dependents)
+        middle-dependents (->> transitive-dependents
+                               (remove (set immediate-dependents))
+                               (remove (set root-dependents)))
+
+        immediate-dependencies (immediate-dependencies (:dependency-graph analysis) var)
+        transitive-dependencies (transitive-dependencies (:dependency-graph analysis) var)
+        leaf-dependencies (leaf-vars (:dependency-graph analysis) transitive-dependencies)
+
+        middle-dependencies (->> transitive-dependencies
+                                 (remove (set immediate-dependencies))
+                                 (remove (set leaf-dependencies)))]
+
+    {:independent-dependencies (independent-vars (:dependency-graph analysis)
+                                                               transitive-dependencies)
+     :entangled-dependencies (entangled-vars (:dependency-graph analysis)
+                                                           transitive-dependencies)
+
+     :dependents immediate-dependents
+     :root-dependents (sort root-dependents)
+     :middle-dependents (sort middle-dependents)
+     :immediate-dependents (sort immediate-dependents)
+
+     :immediate-dependencies (sort immediate-dependencies)
+     :middle-dependencies (sort middle-dependencies)
+     :leaf-dependencies (sort leaf-dependencies)}))
+
 (comment
   (sorted-dependencies (dependncy-graph "src")
                        ["clojure-scope.core" "sorted-dependencies"])
