@@ -139,17 +139,7 @@
                           (= "cljs.test/deftest" (:defined-by var-definition))))))
        (map var-definiton-to-var)))
 
-(defn add-vars [find-vars vars]
-  (concat vars
-          (mapcat find-vars
-                  vars)))
-
-(defn add-colocated-test-vars [var-definitions vars]
-  (concat vars
-          (mapcat (partial colocated-test-vars var-definitions)
-                  vars)))
-
-(deftest test-add-colocated-test-vars
+(deftest test-colocated-test-vars
   (let [var-definitions [{:namespace "demo.core"
                           :name "my-fn"
                           :defined-by "clojure.core/defn"
@@ -176,33 +166,22 @@
                           :start-line 1
                           :end-line 1}]]
 
-    (is (= [["demo.core" "my-fn"]
-            ["demo.core" "test-my-fn"]]
-           (add-colocated-test-vars var-definitions
-                                    [["demo.core" "my-fn"]])))
-
-    (is (= [["demo.core" "other-fn"]]
-           (add-colocated-test-vars var-definitions
-                                    [["demo.core" "other-fn"]])))
-    (is (= [["other.ns" "my-fn"]
-            ["other.ns" "test-my-fn"]]
-           (add-colocated-test-vars var-definitions
-                                    [["other.ns" "my-fn"]])))
-    (is (= [["demo.core" "my-fn"]
-            ["demo.core" "other-fn"]
-            ["demo.core" "test-my-fn"]]
-           (add-colocated-test-vars var-definitions
-                                    [["demo.core" "my-fn"]
-                                     ["demo.core" "other-fn"]])))
-    (is (= [["demo.core" "my-fn"]
-            ["demo.core" "other-fn"]]
-           (add-colocated-test-vars []
-                                    [["demo.core" "my-fn"]
-                                     ["demo.core" "other-fn"]])))
+    (is (= [["demo.core" "test-my-fn"]]
+           (colocated-test-vars var-definitions
+                                ["demo.core" "my-fn"])))
 
     (is (= []
-           (add-colocated-test-vars var-definitions
-                                    [])))))
+           (colocated-test-vars var-definitions
+                                ["demo.core" "other-fn"])))
+
+    (is (= [["other.ns" "test-my-fn"]]
+           (colocated-test-vars var-definitions
+                                ["other.ns" "my-fn"])))))
+
+(defn add-vars [find-vars vars]
+  (concat vars
+          (mapcat find-vars
+                  vars)))
 
 (defn transitive-related-vars [root-var related-vars-by-var]
   (loop [pending (seq (get related-vars-by-var root-var))
@@ -309,7 +288,7 @@
 (defn sorted-implementing-vars [var-definitions dependency-graph var]
   (->> (transitive-dependencies dependency-graph var)
        (concat [var])
-       (add-colocated-test-vars var-definitions)
+       (add-vars (partial colocated-test-vars var-definitions))
        (sort-by-dependencies dependency-graph)))
 
 (defn copy-clojure-form [form-name source-file target-file target-line]
@@ -435,7 +414,7 @@
 (defn inspect-var [analysis var & [{:keys [namespace]}]]
   (let [immediate-dependents (immediate-dependents (:dependency-graph analysis) var)
         transitive-dependents (->> (transitive-dependents (:dependency-graph analysis) var)
-                                   (add-colocated-test-vars (:var-definitions analysis)))
+                                   (add-vars (partial colocated-test-vars (:var-definitions analysis))))
         root-dependents (root-vars (:dependency-graph analysis) transitive-dependents)
         middle-dependents (->> transitive-dependents
                                (remove (set immediate-dependents))
