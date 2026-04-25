@@ -139,6 +139,11 @@
                           (= "cljs.test/deftest" (:defined-by var-definition))))))
        (map var-definiton-to-var)))
 
+(defn add-vars [find-vars vars]
+  (concat vars
+          (mapcat find-vars
+                  vars)))
+
 (defn add-colocated-test-vars [var-definitions vars]
   (concat vars
           (mapcat (partial colocated-test-vars var-definitions)
@@ -331,8 +336,7 @@
     (count (line-seq rdr))))
 
 (defn independent-vars
-  "filter out vars that are required only by vars in the given var
-  sequence"
+  "filter out vars that are required only by the given vars sequence"
   [dependncy-graph vars]
   (let [var-set (set vars)]
     (filter (fn [var]
