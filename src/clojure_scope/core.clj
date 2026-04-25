@@ -350,7 +350,22 @@
     (is (= []
            (independent-vars [{:dependent ["ns" "a"]
                                :dependency ["ns" "b"]}]
-                             [])))))
+                             []))))
+
+
+  (testing "unindependent-leaf must not be returned, since there is a
+            path from other-root through common-dependency"
+    (is (= [["ns" "queried-root"]]
+           (independent-vars [{:dependent ["ns" "a"]
+                               :dependency ["ns" "b"]}
+
+                              {:dependent ["ns" "other-root"]
+                               :dependency ["ns" "common-dependency"]}
+                              {:dependent ["ns" "common-dependency"]
+                               :dependency ["ns" "unindependent-leaf"]}]
+                             [["ns" "queried-root"]
+                              ["ns" "common-dependency"]
+                              ["ns" "unindependent-leaf"]])))))
 
 (defn distinct-dependncy-graph [dependncy-graph]
   (->> dependncy-graph
