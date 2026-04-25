@@ -319,9 +319,7 @@
   [dependncy-graph vars]
   (let [var-set (set vars)]
     (filter (fn [var]
-              (->> dependncy-graph
-                   (filter (comp #{var} :dependency))
-                   (map :dependent)
+              (->> (transitive-dependents dependncy-graph var)
                    (remove var-set)
                    (empty?)))
             vars)))
