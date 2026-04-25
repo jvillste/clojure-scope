@@ -326,6 +326,32 @@
                    (empty?)))
             vars)))
 
+(deftest test-independent-vars
+  (testing "returns vars with no dependents outside the given set"
+    (is (= [["ns" "a"]
+            ["ns" "c"]]
+           (independent-vars [{:dependent ["ns" "a"]
+                               :dependency ["ns" "b"]}
+                              {:dependent ["other-ns" "x"]
+                               :dependency ["ns" "b"]}]
+                             [["ns" "a"]
+                              ["ns" "b"]
+                              ["ns" "c"]]))))
+
+  (testing "keeps vars that are only used by vars in the given set"
+    (is (= [["ns" "b"]
+            ["ns" "c"]]
+           (independent-vars [{:dependent ["ns" "b"]
+                               :dependency ["ns" "c"]}]
+                             [["ns" "b"]
+                              ["ns" "c"]]))))
+
+  (testing "returns an empty sequence for an empty var list"
+    (is (= []
+           (independent-vars [{:dependent ["ns" "a"]
+                               :dependency ["ns" "b"]}]
+                             [])))))
+
 (defn distinct-dependncy-graph [dependncy-graph]
   (->> dependncy-graph
        (map (fn [var-dependency]
