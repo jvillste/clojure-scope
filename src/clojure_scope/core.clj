@@ -467,12 +467,14 @@
                                  (remove (set immediate-dependencies))
                                  (remove (set leaf-dependencies)))]
 
-    (->> {:independent-dependencies (independent-vars (:dependency-graph analysis)
-                                                      transitive-dependencies)
-          :entangled-dependencies (entangled-vars (:dependency-graph analysis)
-                                                  transitive-dependencies)
-
-          :dependents immediate-dependents
+    (->> {:independent-dependencies (->> (conj transitive-dependencies
+                                               var)
+                                         (independent-vars (:dependency-graph analysis))
+                                         (remove #{var}))
+          :entangled-dependencies (->> (conj transitive-dependencies
+                                             var)
+                                       (entangled-vars (:dependency-graph analysis))
+                                       (remove #{var}))
           :root-dependents root-dependents
           :middle-dependents middle-dependents
           :immediate-dependents immediate-dependents
