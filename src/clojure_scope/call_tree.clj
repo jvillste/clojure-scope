@@ -192,7 +192,7 @@ document.addEventListener('click',function(event){const toggleButton=event.targe
 
   (print-tree "src"
               "clojure-scope.core"
-              "sorted-dependencies")
+              "sorted-transitive-dependencies")
 
 
   )

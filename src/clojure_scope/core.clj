@@ -304,7 +304,7 @@
       (let [{:keys [start-line end-line]} (first matches)]
         (line-region/copy-line-region source-file target-file start-line end-line target-line)))))
 
-(defn sorted-dependencies [dependncy-graph a-var]
+(defn sorted-transitive-dependencies [dependncy-graph a-var]
   (sort-by-dependencies dependncy-graph
                         (transitive-dependencies dependncy-graph
                                                  a-var)))
@@ -383,10 +383,10 @@
                                      :column 24}]))))
 
 (defn sorted-independent-dependencies [dependncy-graph a-var]
-  (let [sorted-dependencies (sorted-dependencies dependncy-graph
-                                                 a-var)]
-    (->> sorted-dependencies
-         (filter (set (independent-vars dependncy-graph sorted-dependencies))))))
+  (let [sorted-transitive-dependencies (sorted-transitive-dependencies dependncy-graph
+                                                                       a-var)]
+    (->> sorted-transitive-dependencies
+         (filter (set (independent-vars dependncy-graph sorted-transitive-dependencies))))))
 
 (defn entangled-vars
   "filter out vars that are required also by other vars than the given vars"
@@ -422,10 +422,10 @@
                          [["ns" "b"]]))))
 
 (defn entangled-dependencies [dependncy-graph a-var]
-  (let [sorted-dependencies (sorted-dependencies dependncy-graph
-                                                 a-var)]
-    (->> sorted-dependencies
-         (filter (set (entangled-vars dependncy-graph sorted-dependencies))))))
+  (let [sorted-transitive-dependencies (sorted-transitive-dependencies dependncy-graph
+                                                                       a-var)]
+    (->> sorted-transitive-dependencies
+         (filter (set (entangled-vars dependncy-graph sorted-transitive-dependencies))))))
 
 (defn analysis [clj-kondo-analysis-result]
   {:dependency-graph (dependncy-graph clj-kondo-analysis-result)
@@ -504,6 +504,6 @@
 
 
 (comment
-  (sorted-dependencies (dependncy-graph (clj-kondo-analysis "src"))
-                       ["clojure-scope.core" "sorted-dependencies"])
+  (sorted-transitive-dependencies (dependncy-graph (clj-kondo-analysis "src"))
+                                  ["clojure-scope.core" "sorted-transitive-dependencies"])
   )
