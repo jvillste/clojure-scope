@@ -431,6 +431,24 @@
   {:dependency-graph (dependncy-graph clj-kondo-analysis-result)
    :var-definitions (var-definitions clj-kondo-analysis-result)})
 
+(defn filter-vars-by-namespace [namespace vars]
+  (filter (fn [var]
+            (= namespace (first var)))
+          vars))
+
+(defn dead-code [analysis alive-root-vars]
+  (->> (:var-definitions analysis)
+       (remove (comp #{"cljs.test/deftest"}
+                     :defined-by))
+       (map var-definiton-to-var)
+       (root-vars (:dependency-graph analysis))
+       (remove (set alive-root-vars))
+       (add-vars (partial colocated-test-vars
+                          (:var-definitions analysis)))
+       (add-vars (partial sorted-independent-dependencies
+                          (:dependency-graph analysis)))
+       (distinct)))
+
 (defn inspect-vars [analysis & [{:keys [namespace]}]]
   (->> {:root-vars (->> (:var-definitions analysis)
                         (remove (comp #{"cljs.test/deftest"}
@@ -490,7 +508,7 @@
                                         true))
                                     vars))))))
 
-(defn filter-by-namespace [namespace analysis]
+(defn filter-analysis-by-namespace [namespace analysis]
   (-> analysis
       (update :dependency-graph
               (fn [dependency-graph]
