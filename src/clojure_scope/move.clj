@@ -342,8 +342,8 @@
                                                                                               target-namespace
                                                                                               moved-vars-set
                                                                                               initial-planning-state)]
-    (apply-alias-additions! (:alias-additions external-planning-state))
     (apply-reference-updates! external-reference-updates)
+    (apply-alias-additions! (:alias-additions external-planning-state))
     (let [copied-vars (copy-vars! definitions target-file vars)
           [internal-planning-state internal-reference-updates] (plan-internal-reference-updates clj-kondo-analysis-result
                                                                                                 copied-vars
@@ -351,6 +351,6 @@
                                                                                                 external-planning-state)
           new-target-alias-additions (drop (count (:alias-additions external-planning-state))
                                            (:alias-additions internal-planning-state))]
-      (apply-alias-additions! new-target-alias-additions)
       (apply-reference-updates! internal-reference-updates)
+      (apply-alias-additions! new-target-alias-additions)
       (delete-vars! definitions vars))))

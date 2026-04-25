@@ -95,7 +95,8 @@
       (reference/add-namespace-alias file "bread" "b")
 
       (is (= (str "(ns apple\n"
-                  "  (:require [crumb :as c] [bread :as b]))\n"
+                  "  (:require [crumb :as c]\n"
+                  "            [bread :as b]))\n"
                   "\n"
                   "(def value 1)\n")
              (read-file file))))))

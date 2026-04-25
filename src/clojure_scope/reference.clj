@@ -1,6 +1,7 @@
 (ns clojure-scope.reference
   (:require
    [clojure.java.io :as io]
+   [clojure.string :as string]
    [rewrite-clj.zip :as zip]))
 
 (set! *warn-on-reflection* true)
@@ -133,17 +134,27 @@
       :else
       (recur (zip/right location)))))
 
+(defn require-clause-with-appended-alias [require-location namespace alias]
+  (let [require-clause (zip/string require-location)
+        alias-indentation-width (+ (dec (:col (meta (zip/node require-location))))
+                                   (count "(:require "))
+        alias-indentation (apply str (repeat alias-indentation-width " "))
+        alias-form-string (pr-str (namespace-alias-form namespace alias))]
+    (str (subs require-clause 0 (dec (count require-clause)))
+         "\n"
+         alias-indentation
+         alias-form-string
+         ")")))
+
 (defn rewrite-namespace-alias [file-contents namespace alias]
   (let [root-location (zip/of-string file-contents)
         ns-location (or (ns-form-location root-location)
                         (throw (ex-info "Could not find ns form."
                                         {})))]
     (if-let [require-location (require-clause-location ns-location)]
-      (zip/root-string (-> require-location
-                           zip/down
-                           zip/rightmost
-                           (zip/insert-right (namespace-alias-form namespace alias))
-                           zip/up))
+      (string/replace-first file-contents
+                            (re-pattern (java.util.regex.Pattern/quote (zip/string require-location)))
+                            (require-clause-with-appended-alias require-location namespace alias))
       (zip/root-string (-> ns-location
                            zip/down
                            zip/rightmost

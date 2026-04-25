@@ -57,7 +57,8 @@
                 "(defn moved [] 1)")
            (read-file directory "src/demo/target.clj")))
     (is (= (str "(ns demo.caller\n"
-                "  (:require [demo.source :as source] [demo.target :as target]))\n"
+                "  (:require [demo.source :as source]\n"
+                "            [demo.target :as target]))\n"
                 "\n"
                 "(defn use-it [] (target/moved))\n")
            (read-file directory "src/demo/caller.clj")))))
@@ -146,7 +147,8 @@
                     "demo.target")
 
     (is (= (str "(ns demo.target\n"
-                "  (:require [other.util :as util] [demo.util :as util1]))\n"
+                "  (:require [other.util :as util]\n"
+                "            [demo.util :as util1]))\n"
                 "\n"
                 "(defn moved [] (util1/answer))")
            (read-file directory "src/demo/target.clj")))))
