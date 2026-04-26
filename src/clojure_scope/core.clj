@@ -513,11 +513,12 @@
                            :dependency ["ns" "b"]}]
                          [["ns" "b"]]))))
 
-(defn entangled-dependencies [dependency-graph a-var]
-  (let [sorted-transitive-dependencies (sorted-transitive-dependencies dependency-graph
-                                                                       a-var)]
-    (->> sorted-transitive-dependencies
-         (filter (set (entangled-vars dependency-graph sorted-transitive-dependencies))))))
+(defn entangled-dependencies [dependency-graph var]
+  (->> (transitive-dependencies dependency-graph
+                                var)
+       (conj var)
+       (entangled-vars dependency-graph)
+       (remove #{var})))
 
 (defn analysis [clj-kondo-analysis-result]
   {:dependency-graph (dependency-graph clj-kondo-analysis-result)
@@ -577,14 +578,8 @@
                                  (remove (set immediate-dependencies))
                                  (remove (set leaf-dependencies)))]
 
-    (->> {:independent-dependencies (->> (conj transitive-dependencies
-                                               var)
-                                         (independent-vars (:dependency-graph analysis))
-                                         (remove #{var}))
-          :entangled-dependencies (->> (conj transitive-dependencies
-                                             var)
-                                       (entangled-vars (:dependency-graph analysis))
-                                       (remove #{var}))
+    (->> {:independent-dependencies (independent-dependencies dependency-graph var)
+          :entangled-dependencies (entangled-dependencies dependency-graph var)
           :transitive-dependents transitive-dependents
           :root-dependents root-dependents
           :middle-dependents middle-dependents
