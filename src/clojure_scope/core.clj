@@ -260,7 +260,24 @@
 
 (defn paths
   "finds all paths between the given vars"
-  [dependency-graph source-var target-var])
+  [dependency-graph source-var target-var]
+  (let [dependencies-by-var (dependencies-by-var dependency-graph)]
+    (letfn [(paths-from [current-var visited-vars]
+              (cond
+                (= current-var target-var)
+                [[current-var]]
+
+                (contains? visited-vars current-var)
+                []
+
+                :else
+                (->> (get dependencies-by-var current-var)
+                     (mapcat (fn [dependency-var]
+                               (map (fn [path]
+                                      (into [current-var] path))
+                                    (paths-from dependency-var
+                                                (conj visited-vars current-var))))))))]
+      (paths-from source-var #{}))))
 
 (deftest test-paths
   (is (= #{[["namespace-1" "var-1"]
@@ -279,7 +296,38 @@
                       {:dependent ["namespace-1" "var-4"]
                        :dependency ["namespace-1" "var-3"]}]
                      ["namespace-1" "var-1"]
-                     ["namespace-1" "var-3"])))))
+                     ["namespace-1" "var-3"]))))
+
+  (is (= [[["namespace-1" "var-1"]]]
+         (paths [{:dependent ["namespace-1" "var-1"]
+                  :dependency ["namespace-1" "var-2"]}]
+                ["namespace-1" "var-1"]
+                ["namespace-1" "var-1"])))
+
+  (is (= #{[["namespace-1" "var-1"]
+            ["namespace-1" "var-2"]
+            ["namespace-1" "var-3"]]}
+         (set (paths [{:dependent ["namespace-1" "var-1"]
+                       :dependency ["namespace-1" "var-2"]}
+                      {:dependent ["namespace-1" "var-2"]
+                       :dependency ["namespace-1" "var-1"]}
+                      {:dependent ["namespace-1" "var-2"]
+                       :dependency ["namespace-1" "var-3"]}]
+                     ["namespace-1" "var-1"]
+                     ["namespace-1" "var-3"]))))
+
+  (is (= #{}
+         (set (paths []
+                     ["namespace-1" "var-1"]
+                     ["namespace-1" "var-2"]))))
+
+  (is (= #{}
+         (set (paths [{:dependent ["namespace-1" "var-1"]
+                       :dependency ["namespace-1" "var-3"]}
+                      {:dependent ["namespace-1" "var-3"]
+                       :dependency ["namespace-1" "var-4"]}]
+                     ["namespace-1" "var-1"]
+                     ["namespace-1" "var-2"])))))
 
 (defn sort-by-dependencies
   "orders nodes so that the ones that come last depend on the earlier
