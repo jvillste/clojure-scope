@@ -473,6 +473,13 @@
     (->> sorted-transitive-dependencies
          (filter (set (independent-vars dependncy-graph sorted-transitive-dependencies))))))
 
+(defn independent-dependencies [dependency-graph var]
+  (->> (transitive-dependencies dependency-graph
+                                var)
+       (conj var)
+       (independent-vars dependency-graph)
+       (remove #{var})))
+
 (defn entangled-vars
   "filter out vars that are required also by other vars than the given vars"
   [dependncy-graph vars]
