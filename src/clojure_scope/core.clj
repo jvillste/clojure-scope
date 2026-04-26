@@ -73,7 +73,7 @@
    :line row
    :column col})
 
-(defn dependncy-graph [clj-kondo-analysis-result]
+(defn dependency-graph [clj-kondo-analysis-result]
   (let [{:keys [var-usages]} clj-kondo-analysis-result
         internal-vars (->> (var-definitions clj-kondo-analysis-result)
                            (map var-definiton-to-var)
@@ -389,9 +389,9 @@
       (let [{:keys [start-line end-line]} (first matches)]
         (line-region/copy-line-region source-file target-file start-line end-line target-line)))))
 
-(defn sorted-transitive-dependencies [dependncy-graph a-var]
-  (sort-by-dependencies dependncy-graph
-                        (transitive-dependencies dependncy-graph
+(defn sorted-transitive-dependencies [dependency-graph a-var]
+  (sort-by-dependencies dependency-graph
+                        (transitive-dependencies dependency-graph
                                                  a-var)))
 
 
@@ -401,10 +401,10 @@
 
 (defn independent-vars
   "filter out vars that are required only by the given vars sequence"
-  [dependncy-graph vars]
+  [dependency-graph vars]
   (let [var-set (set vars)]
     (filter (fn [var]
-              (->> (transitive-dependents dependncy-graph var)
+              (->> (transitive-dependents dependency-graph var)
                    (remove var-set)
                    (empty?)))
             vars)))
@@ -450,28 +450,28 @@
                               ["ns" "common-dependency"]
                               ["ns" "unindependent-leaf"]])))))
 
-(defn distinct-dependncy-graph [dependncy-graph]
-  (->> dependncy-graph
+(defn distinct-dependency-graph [dependency-graph]
+  (->> dependency-graph
        (map (fn [var-dependency]
               (select-keys var-dependency [:dependency :dependent])))
        (distinct)))
 
-(deftest test-distinct-dependncy-graph
+(deftest test-distinct-dependency-graph
   (is (= '({:dependency ["ns" "b"], :dependent ["ns" "a"]})
-         (distinct-dependncy-graph [{:dependent ["ns" "a"],
-                                     :dependency ["ns" "b"],
-                                     :line 1273,
-                                     :column 11}
-                                    {:dependent ["ns" "a"],
-                                     :dependency ["ns" "b"],
-                                     :line 1343,
-                                     :column 24}]))))
+         (distinct-dependency-graph [{:dependent ["ns" "a"],
+                                      :dependency ["ns" "b"],
+                                      :line 1273,
+                                      :column 11}
+                                     {:dependent ["ns" "a"],
+                                      :dependency ["ns" "b"],
+                                      :line 1343,
+                                      :column 24}]))))
 
-(defn sorted-independent-dependencies [dependncy-graph a-var]
-  (let [sorted-transitive-dependencies (sorted-transitive-dependencies dependncy-graph
+(defn sorted-independent-dependencies [dependency-graph a-var]
+  (let [sorted-transitive-dependencies (sorted-transitive-dependencies dependency-graph
                                                                        a-var)]
     (->> sorted-transitive-dependencies
-         (filter (set (independent-vars dependncy-graph sorted-transitive-dependencies))))))
+         (filter (set (independent-vars dependency-graph sorted-transitive-dependencies))))))
 
 (defn independent-dependencies [dependency-graph var]
   (->> (transitive-dependencies dependency-graph
@@ -482,9 +482,9 @@
 
 (defn entangled-vars
   "filter out vars that are required also by other vars than the given vars"
-  [dependncy-graph vars]
+  [dependency-graph vars]
   (set/difference (set vars)
-                  (set (independent-vars dependncy-graph vars))))
+                  (set (independent-vars dependency-graph vars))))
 
 (deftest test-entangled-vars
   (is (= #{}
@@ -513,14 +513,14 @@
                            :dependency ["ns" "b"]}]
                          [["ns" "b"]]))))
 
-(defn entangled-dependencies [dependncy-graph a-var]
-  (let [sorted-transitive-dependencies (sorted-transitive-dependencies dependncy-graph
+(defn entangled-dependencies [dependency-graph a-var]
+  (let [sorted-transitive-dependencies (sorted-transitive-dependencies dependency-graph
                                                                        a-var)]
     (->> sorted-transitive-dependencies
-         (filter (set (entangled-vars dependncy-graph sorted-transitive-dependencies))))))
+         (filter (set (entangled-vars dependency-graph sorted-transitive-dependencies))))))
 
 (defn analysis [clj-kondo-analysis-result]
-  {:dependency-graph (dependncy-graph clj-kondo-analysis-result)
+  {:dependency-graph (dependency-graph clj-kondo-analysis-result)
    :var-definitions (var-definitions clj-kondo-analysis-result)})
 
 (defn filter-vars-by-namespace [namespace vars]
@@ -623,6 +623,6 @@
        (apply set/intersection)))
 
 (comment
-  (sorted-transitive-dependencies (dependncy-graph (clj-kondo-analysis "src"))
+  (sorted-transitive-dependencies (dependency-graph (clj-kondo-analysis "src"))
                                   ["clojure-scope.core" "sorted-transitive-dependencies"])
   )
