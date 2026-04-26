@@ -261,6 +261,9 @@
 (defn paths
   "finds all paths between the given vars"
   [dependency-graph source-var target-var]
+
+  (assert (not (= source-var target-var)))
+
   (let [dependencies-by-var (dependencies-by-var dependency-graph)]
     (letfn [(paths-from [current-var visited-vars]
               (cond
@@ -298,11 +301,11 @@
                      ["namespace-1" "var-1"]
                      ["namespace-1" "var-3"]))))
 
-  (is (= [[["namespace-1" "var-1"]]]
-         (paths [{:dependent ["namespace-1" "var-1"]
-                  :dependency ["namespace-1" "var-2"]}]
-                ["namespace-1" "var-1"]
-                ["namespace-1" "var-1"])))
+  (is (thrown? AssertionError
+               (paths [{:dependent ["namespace-1" "var-1"]
+                        :dependency ["namespace-1" "var-2"]}]
+                      ["namespace-1" "var-1"]
+                      ["namespace-1" "var-1"])))
 
   (is (= #{[["namespace-1" "var-1"]
             ["namespace-1" "var-2"]
