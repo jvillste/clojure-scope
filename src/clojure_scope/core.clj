@@ -430,9 +430,8 @@
            (independent-vars [{:dependent ["ns" "b"]
                                :dependency ["ns" "c"]}]
                              [["ns" "b"]
-                              ["ns" "c"]]))))
+                              ["ns" "c"]])))
 
-  (testing "keeps vars that are only used by vars in the given set"
     (is (= [["ns" "c"]]
            (independent-vars [{:dependent ["ns" "a"]
                                :dependency ["ns" "b"]}
