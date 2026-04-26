@@ -400,13 +400,16 @@
     (count (line-seq rdr))))
 
 (defn independent-vars
-  "filter out vars that are required only by the given vars sequence"
+  "filter out vars that are required only by the given vars"
   [dependency-graph vars]
   (let [var-set (set vars)]
     (filter (fn [var]
-              (->> (transitive-dependents dependency-graph var)
-                   (remove var-set)
-                   (empty?)))
+              (not-any? (fn [dependency]
+                          (and (= (:dependency dependency)
+                                  var)
+                               (not (contains? var-set
+                                               (:dependent dependency)))))
+                        dependency-graph))
             vars)))
 
 (deftest test-independent-vars
@@ -429,26 +432,22 @@
                              [["ns" "b"]
                               ["ns" "c"]]))))
 
+  (testing "keeps vars that are only used by vars in the given set"
+    (is (= [["ns" "c"]]
+           (independent-vars [{:dependent ["ns" "a"]
+                               :dependency ["ns" "b"]}
+                              {:dependent ["ns" "b"]
+                               :dependency ["ns" "c"]}
+                              {:dependent ["ns" "c"]
+                               :dependency ["ns" "d"]}]
+                             [["ns" "b"]
+                              ["ns" "c"]]))))
+
   (testing "returns an empty sequence for an empty var list"
     (is (= []
            (independent-vars [{:dependent ["ns" "a"]
                                :dependency ["ns" "b"]}]
-                             []))))
-
-
-  (testing "unindependent-leaf must not be returned, since there is a
-            path from other-root through common-dependency"
-    (is (= [["ns" "queried-root"]]
-           (independent-vars [{:dependent ["ns" "a"]
-                               :dependency ["ns" "b"]}
-
-                              {:dependent ["ns" "other-root"]
-                               :dependency ["ns" "common-dependency"]}
-                              {:dependent ["ns" "common-dependency"]
-                               :dependency ["ns" "unindependent-leaf"]}]
-                             [["ns" "queried-root"]
-                              ["ns" "common-dependency"]
-                              ["ns" "unindependent-leaf"]])))))
+                             [])))))
 
 (defn distinct-dependency-graph [dependency-graph]
   (->> dependency-graph
@@ -467,18 +466,75 @@
                                       :line 1343,
                                       :column 24}]))))
 
-(defn sorted-independent-dependencies [dependency-graph a-var]
-  (let [sorted-transitive-dependencies (sorted-transitive-dependencies dependency-graph
-                                                                       a-var)]
-    (->> sorted-transitive-dependencies
-         (filter (set (independent-vars dependency-graph sorted-transitive-dependencies))))))
+(defn independent-dependency-for-var?
+  [dependency-graph target-var dependency-var]
+  (let [implementation-vars (conj (transitive-dependencies dependency-graph
+                                                           target-var)
+                                  target-var)
+        allowed-dependent-vars (into implementation-vars
+                                     (transitive-dependents dependency-graph
+                                                            target-var))]
+    (every? allowed-dependent-vars
+            (transitive-dependents dependency-graph
+                                   dependency-var))))
+
+(deftest test-independent-dependency-for-var?
+  (testing "keeps vars that are only used through the target var"
+    (is (true? (independent-dependency-for-var? [{:dependent ["ns" "caller"]
+                                                  :dependency ["ns" "target"]}
+                                                 {:dependent ["ns" "target"]
+                                                  :dependency ["ns" "helper"]}]
+                                                ["ns" "target"]
+                                                ["ns" "helper"]))))
+
+  (testing "rejects vars that are also used through a shared internal helper"
+    (is (false? (independent-dependency-for-var? [{:dependent ["ns" "target"]
+                                                   :dependency ["ns" "shared-helper"]}
+                                                  {:dependent ["ns" "shared-helper"]
+                                                   :dependency ["ns" "leaf"]}
+                                                  {:dependent ["ns" "other-root"]
+                                                   :dependency ["ns" "shared-helper"]}]
+                                                 ["ns" "target"]
+                                                 ["ns" "leaf"])))))
 
 (defn independent-dependencies [dependency-graph var]
   (->> (transitive-dependencies dependency-graph
                                 var)
-       (conj var)
-       (independent-vars dependency-graph)
-       (remove #{var})))
+       (filter (partial independent-dependency-for-var? dependency-graph var))))
+
+(deftest test-independent-dependencies
+  (is (= #{["ns" "b"]}
+         (set (independent-dependencies [{:dependent ["ns" "a"]
+                                          :dependency ["ns" "b"]}]
+                                        ["ns" "a"]))))
+
+  (is (= #{["ns" "c"]}
+         (set (independent-dependencies [{:dependent ["ns" "a"]
+                                          :dependency ["ns" "b"]}
+                                         {:dependent ["ns" "b"]
+                                          :dependency ["ns" "c"]}]
+                                        ["ns" "b"]))))
+
+  (is (= #{["ns" "c"]}
+         (set (independent-dependencies [{:dependent ["ns" "caller"]
+                                          :dependency ["ns" "b"]}
+                                         {:dependent ["ns" "b"]
+                                          :dependency ["ns" "c"]}]
+                                        ["ns" "b"]))))
+
+  (is (= #{}
+         (set (independent-dependencies [{:dependent ["ns" "a"]
+                                          :dependency ["ns" "b"]}]
+                                        ["ns" "b"]))))
+
+  (is (= #{}
+         (set (independent-dependencies [{:dependent ["ns" "target"]
+                                          :dependency ["ns" "shared-helper"]}
+                                         {:dependent ["ns" "shared-helper"]
+                                          :dependency ["ns" "leaf"]}
+                                         {:dependent ["ns" "other-root"]
+                                          :dependency ["ns" "shared-helper"]}]
+                                        ["ns" "target"])))))
 
 (defn entangled-vars
   "filter out vars that are required also by other vars than the given vars"
@@ -514,9 +570,9 @@
                          [["ns" "b"]]))))
 
 (defn entangled-dependencies [dependency-graph var]
-  (->> (transitive-dependencies dependency-graph
-                                var)
-       (conj var)
+  (->> (conj (transitive-dependencies dependency-graph
+                                      var)
+             var)
        (entangled-vars dependency-graph)
        (remove #{var})))
 
@@ -538,7 +594,7 @@
        (remove (set alive-root-vars))
        (add-vars (partial colocated-test-vars
                           (:var-definitions analysis)))
-       (add-vars (partial sorted-independent-dependencies
+       (add-vars (partial independent-dependencies
                           (:dependency-graph analysis)))
        (distinct)))
 
@@ -578,8 +634,8 @@
                                  (remove (set immediate-dependencies))
                                  (remove (set leaf-dependencies)))]
 
-    (->> {:independent-dependencies (independent-dependencies dependency-graph var)
-          :entangled-dependencies (entangled-dependencies dependency-graph var)
+    (->> {:independent-dependencies (independent-dependencies (:dependency-graph analysis) var)
+          :entangled-dependencies (entangled-dependencies (:dependency-graph analysis) var)
           :transitive-dependents transitive-dependents
           :root-dependents root-dependents
           :middle-dependents middle-dependents
