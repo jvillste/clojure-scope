@@ -258,6 +258,29 @@
          (remove (fn [var]
                    (contains? dependencies-by-var var))))))
 
+(defn paths
+  "finds all paths between the given vars"
+  [dependency-graph source-var target-var])
+
+(deftest test-paths
+  (is (= #{[["namespace-1" "var-1"]
+            ["namespace-1" "var-2"]
+            ["namespace-1" "var-3"]]
+
+           [["namespace-1" "var-1"]
+            ["namespace-1" "var-4"]
+            ["namespace-1" "var-3"]]}
+         (set (paths [{:dependent ["namespace-1" "var-1"]
+                       :dependency ["namespace-1" "var-2"]}
+                      {:dependent ["namespace-1" "var-1"]
+                       :dependency ["namespace-1" "var-4"]}
+                      {:dependent ["namespace-1" "var-2"]
+                       :dependency ["namespace-1" "var-3"]}
+                      {:dependent ["namespace-1" "var-4"]
+                       :dependency ["namespace-1" "var-3"]}]
+                     ["namespace-1" "var-1"]
+                     ["namespace-1" "var-3"])))))
+
 (defn sort-by-dependencies
   "orders nodes so that the ones that come last depend on the earlier
   ones."
