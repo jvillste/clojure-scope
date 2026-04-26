@@ -241,6 +241,17 @@
          (remove (fn [var]
                    (contains? dependents-by-var var))))))
 
+(defn filter-dependency-graph-by-vars [vars dependency-graph]
+  (let [var-set (set vars)]
+    (filter (fn [dependency]
+              (and (contains? var-set (:dependent dependency))
+                   (contains? var-set (:dependency dependency))))
+            dependency-graph)))
+
+(defn local-root-vars [dependency-graph vars]
+  (root-vars (filter-dependency-graph-by-vars vars dependency-graph)
+             vars))
+
 (defn leaf-vars [dependency-graph vars]
   (let [dependencies-by-var (dependencies-by-var dependency-graph)]
     (->> vars
@@ -493,10 +504,12 @@
                                              var)
                                        (entangled-vars (:dependency-graph analysis))
                                        (remove #{var}))
+          :transitive-dependents transitive-dependents
           :root-dependents root-dependents
           :middle-dependents middle-dependents
           :immediate-dependents immediate-dependents
 
+          :transitive-dependencies transitive-dependencies
           :immediate-dependencies immediate-dependencies
           :middle-dependencies middle-dependencies
           :leaf-dependencies leaf-dependencies}
@@ -522,6 +535,11 @@
                           (= namespace (:namespace var-definition)))
                         var-definitions)))))
 
+(defn common-transitive-dependencies [dependency-graph vars]
+  (->> vars
+       (map (partial transitive-dependencies
+                     dependency-graph))
+       (apply set/intersection)))
 
 (comment
   (sorted-transitive-dependencies (dependncy-graph (clj-kondo-analysis "src"))
