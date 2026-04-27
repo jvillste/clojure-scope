@@ -128,6 +128,9 @@
        (map :dependency)
        (distinct)))
 
+(def test-defining-form-kinds-set #{"cljs.test/deftest"
+                                    "clojure.test/deftest"})
+
 (defn colocated-test-vars [var-definitions var]
   (->> var-definitions
        (filter (fn [var-definition]
@@ -135,8 +138,8 @@
                          (:namespace var-definition))
                       (= (:name var-definition)
                          (str "test-" (second var)))
-                      (or (= "clojure.test/deftest" (:defined-by var-definition))
-                          (= "cljs.test/deftest" (:defined-by var-definition))))))
+                      (contains? test-defining-form-kinds-set
+                                 (:defined-by var-definition)))))
        (map var-definiton-to-var)))
 
 (deftest test-colocated-test-vars
@@ -616,7 +619,7 @@
 
 (defn dead-code [analysis alive-root-vars]
   (->> (:var-definitions analysis)
-       (remove (comp #{"cljs.test/deftest"}
+       (remove (comp test-defining-form-kinds-set
                      :defined-by))
        (map var-definiton-to-var)
        (root-vars (:dependency-graph analysis))
@@ -629,12 +632,12 @@
 
 (defn inspect-vars [analysis & [{:keys [namespace]}]]
   (->> {:root-vars (->> (:var-definitions analysis)
-                        (remove (comp #{"cljs.test/deftest"}
+                        (remove (comp test-defining-form-kinds-set
                                       :defined-by))
                         (map var-definiton-to-var)
                         (root-vars (:dependency-graph analysis)))
         :tests (->> (:var-definitions analysis)
-                    (filter (comp #{"cljs.test/deftest"}
+                    (filter (comp test-defining-form-kinds-set
                                   :defined-by))
                     (map var-definiton-to-var))
         :leaf-vars (leaf-vars (:dependency-graph analysis)
