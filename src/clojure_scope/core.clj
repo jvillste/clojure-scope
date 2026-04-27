@@ -589,12 +589,15 @@
   (set/difference (set (transitive-dependencies dependency-graph var))
                   (set (independent-dependencies dependency-graph var))))
 
+(defn entangled-immediate-dependencies [dependency-graph var]
+  (set/intersection (set (immediate-dependencies dependency-graph var))
+                    (set (entangled-dependencies dependency-graph var))))
 
-(defn sorted-independent-implementing-vars [var-definitions dependency-graph var]
-  (->> (independent-dependencies dependency-graph var)
+(defn sorted-independent-implementing-vars [analysis var]
+  (->> (independent-dependencies (:dependency-graph analysis) var)
        (concat [var])
-       (add-vars (partial colocated-test-vars var-definitions))
-       (sort-by-dependencies dependency-graph)))
+       (add-vars (partial colocated-test-vars (:var-definitions analysis)))
+       (sort-by-dependencies (:dependency-graph analysis))))
 
 (defn analysis [clj-kondo-analysis-result]
   {:dependency-graph (dependency-graph clj-kondo-analysis-result)
