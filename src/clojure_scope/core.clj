@@ -341,7 +341,8 @@
   [dependency-graph nodes]
   (let [node-set (set nodes)
         dependency-map (reduce (fn [dependency-map {:keys [dependent dependency]}]
-                                 (if (and (contains? node-set dependent)
+                                 (if (and (not= dependent dependency)
+                                          (contains? node-set dependent)
                                           (contains? node-set dependency))
                                    (update dependency-map dependent (fnil conj #{}) dependency)
                                    dependency-map))
@@ -395,6 +396,14 @@
                (catch clojure.lang.ExceptionInfo ex ex))]
     (is (= "Cannot sort nodes with cyclic dependency-graph" (.getMessage e)))
     (is (= [["ns" "a"] ["ns" "b"]] (:cycle (ex-data e))))))
+
+(deftest test-sort-by-dependencies-self-reference
+  (is (= [["ns" "g"] ["ns" "f"]]
+         (sort-by-dependencies [{:dependent ["ns" "f"]
+                                 :dependency ["ns" "f"]}  ;; recursive call, ignored
+                                {:dependent ["ns" "f"]
+                                 :dependency ["ns" "g"]}]
+                               [["ns" "f"] ["ns" "g"]]))))
 
 (defn copy-clojure-form [form-name source-file target-file target-line]
   (let [matches (->> (string-to-forms/string-to-forms (slurp source-file))
