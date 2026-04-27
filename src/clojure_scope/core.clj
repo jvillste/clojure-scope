@@ -593,6 +593,12 @@
   (set/intersection (set (immediate-dependencies dependency-graph var))
                     (set (entangled-dependencies dependency-graph var))))
 
+(defn sorted-implementing-vars [analysis var]
+  (->> (transitive-dependencies (:dependency-graph analysis) var)
+       (concat [var])
+       (add-vars (partial colocated-test-vars (:var-definitions analysis)))
+       (sort-by-dependencies (:dependency-graph analysis))))
+
 (defn sorted-independent-implementing-vars [analysis var]
   (->> (independent-dependencies (:dependency-graph analysis) var)
        (concat [var])
