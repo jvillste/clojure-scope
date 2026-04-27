@@ -341,16 +341,13 @@
         [external-planning-state external-reference-updates] (plan-external-reference-updates clj-kondo-analysis-result
                                                                                               target-namespace
                                                                                               moved-vars-set
-                                                                                              initial-planning-state)]
-    (apply-reference-updates! external-reference-updates)
-    (apply-alias-additions! (:alias-additions external-planning-state))
-    (let [copied-vars (copy-vars! definitions target-file vars)
-          [internal-planning-state internal-reference-updates] (plan-internal-reference-updates clj-kondo-analysis-result
-                                                                                                copied-vars
-                                                                                                moved-vars-set
-                                                                                                external-planning-state)
-          new-target-alias-additions (drop (count (:alias-additions external-planning-state))
-                                           (:alias-additions internal-planning-state))]
-      (apply-reference-updates! internal-reference-updates)
-      (apply-alias-additions! new-target-alias-additions)
-      (delete-vars! definitions vars))))
+                                                                                              initial-planning-state)
+        copied-vars (copy-vars! definitions target-file vars)
+        [internal-planning-state internal-reference-updates] (plan-internal-reference-updates clj-kondo-analysis-result
+                                                                                              copied-vars
+                                                                                              moved-vars-set
+                                                                                              external-planning-state)]
+    (apply-reference-updates! (concat external-reference-updates
+                                      internal-reference-updates))
+    (delete-vars! definitions vars)
+    (apply-alias-additions! (:alias-additions internal-planning-state))))

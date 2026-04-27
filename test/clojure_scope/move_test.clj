@@ -91,6 +91,39 @@
                 "(defn moved [] (helper))")
            (read-file directory "src/demo/target.clj")))))
 
+(deftest move-var-plans-internal-updates-before-source-alias-edits
+  (let [directory (create-temp-dir)
+        source-folder (.getPath (io/file directory "src"))]
+    (write-source-file! directory
+                        "src/demo/source.clj"
+                        (str "(ns demo.source\n"
+                             "  (:require [clojure.string :as string]))\n"
+                             "\n"
+                             "(defn moved [value] (string/lower-case value))\n"
+                             "\n"
+                             "(defn left-behind [value]\n"
+                             "  (moved value))\n"))
+    (write-source-file! directory
+                        "src/demo/target.clj"
+                        (str "(ns demo.target)\n"))
+
+    (move/move-vars (clojure-scope/clj-kondo-analysis source-folder)
+                    [["demo.source" "moved"]]
+                    "demo.target")
+
+    (is (= (str "(ns demo.source\n"
+                "  (:require [clojure.string :as string]\n"
+                "            [demo.target :as target]))\n"
+                "\n"
+                "\n"
+                "(defn left-behind [value]\n"
+                "  (target/moved value))")
+           (read-file directory "src/demo/source.clj")))
+    (is (= (str "(ns demo.target (:require [clojure.string :as string]))\n"
+                "\n"
+                "(defn moved [value] (string/lower-case value))")
+           (read-file directory "src/demo/target.clj")))))
+
 (deftest move-var-qualifies-left-behind-source-dependencies
   (let [directory (create-temp-dir)
         source-folder (.getPath (io/file directory "src"))]
