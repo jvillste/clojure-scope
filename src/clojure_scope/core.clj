@@ -360,9 +360,22 @@
           (recur (remove #(= % next-node) remaining)
                  (conj ordered next-node)
                  (conj ordered-set next-node))
-          (throw (ex-info "Cannot sort nodes with cyclic dependency-graph"
-                          {:nodes nodes
-                           :dependencies dependency-graph})))))))
+          (let [remaining-set (set remaining)
+                cycle (loop [visited []
+                             current (first remaining)]
+                        (if (some #{current} visited)
+                          (loop [i 0]
+                            (if (= current (visited i))
+                              (subvec visited i)
+                              (recur (inc i))))
+                          (let [deps (get dependency-map current #{})
+                                next-node (first (filter remaining-set deps))]
+                            (recur (conj visited current)
+                                   (or next-node current)))))]
+            (throw (ex-info "Cannot sort nodes with cyclic dependency-graph"
+                            {:nodes nodes
+                             :dependencies dependency-graph
+                             :cycle cycle}))))))))
 
 (deftest test-sort-by-dependencies
   (is (= [["namespace-1" "var-2"]
@@ -371,6 +384,17 @@
                                  :dependency ["namespace-1" "var-2"]}]
                                [["namespace-1" "var-1"]
                                 ["namespace-1" "var-2"]]))))
+
+(deftest test-sort-by-dependencies-circular
+  (let [deps [{:dependent ["ns" "a"]
+               :dependency ["ns" "b"]}
+              {:dependent ["ns" "b"]
+               :dependency ["ns" "a"]}]
+        nodes [["ns" "a"] ["ns" "b"]]
+        e (try (sort-by-dependencies deps nodes)
+               (catch clojure.lang.ExceptionInfo ex ex))]
+    (is (= "Cannot sort nodes with cyclic dependency-graph" (.getMessage e)))
+    (is (= [["ns" "a"] ["ns" "b"]] (:cycle (ex-data e))))))
 
 (defn copy-clojure-form [form-name source-file target-file target-line]
   (let [matches (->> (string-to-forms/string-to-forms (slurp source-file))
@@ -389,7 +413,6 @@
   (sort-by-dependencies dependency-graph
                         (transitive-dependencies dependency-graph
                                                  a-var)))
-
 
 (defn line-count [path]
   (with-open [rdr (io/reader path)]
@@ -492,7 +515,6 @@
                                                    :dependency ["ns" "shared-helper"]}]
                                                  ["ns" "target"]
                                                  ["ns" "leaf"])))
-
 
     (is (false? (independent-dependency-for-var? [{:dependent ["ns" "target"]
                                                    :dependency ["ns" "shared-helper"]}
@@ -704,8 +726,3 @@
        (map (partial transitive-dependencies
                      dependency-graph))
        (apply set/intersection)))
-
-(comment
-  (sorted-transitive-dependencies (dependency-graph (clj-kondo-analysis "src"))
-                                  ["clojure-scope.core" "sorted-transitive-dependencies"])
-  )
