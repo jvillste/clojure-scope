@@ -369,13 +369,6 @@
                                [["namespace-1" "var-1"]
                                 ["namespace-1" "var-2"]]))))
 
-
-(defn sorted-implementing-vars [var-definitions dependency-graph var]
-  (->> (transitive-dependencies dependency-graph var)
-       (concat [var])
-       (add-vars (partial colocated-test-vars var-definitions))
-       (sort-by-dependencies dependency-graph)))
-
 (defn copy-clojure-form [form-name source-file target-file target-line]
   (let [matches (->> (string-to-forms/string-to-forms (slurp source-file))
                      (filter #(= form-name (:name %)))
@@ -466,16 +459,17 @@
                                       :column 24}]))))
 
 (defn independent-dependency-for-var?
+  "do all paths to the dependents go through the target var"
   [dependency-graph target-var dependency-var]
-  (let [implementation-vars (conj (transitive-dependencies dependency-graph
-                                                           target-var)
-                                  target-var)
-        allowed-dependent-vars (into implementation-vars
-                                     (transitive-dependents dependency-graph
-                                                            target-var))]
-    (every? allowed-dependent-vars
-            (transitive-dependents dependency-graph
-                                   dependency-var))))
+  (->> (transitive-dependents dependency-graph
+                              dependency-var)
+       (every? (fn [dependent-var]
+                 (every? (fn [path]
+                           (some #{target-var}
+                                 path))
+                         (paths dependency-graph
+                                dependent-var
+                                dependency-var))))))
 
 (deftest test-independent-dependency-for-var?
   (testing "keeps vars that are only used through the target var"
@@ -493,6 +487,18 @@
                                                    :dependency ["ns" "leaf"]}
                                                   {:dependent ["ns" "other-root"]
                                                    :dependency ["ns" "shared-helper"]}]
+                                                 ["ns" "target"]
+                                                 ["ns" "leaf"])))
+
+
+    (is (false? (independent-dependency-for-var? [{:dependent ["ns" "target"]
+                                                   :dependency ["ns" "shared-helper"]}
+                                                  {:dependent ["ns" "shared-helper"]
+                                                   :dependency ["ns" "leaf"]}
+                                                  {:dependent ["ns" "other-root"]
+                                                   :dependency ["ns" "shared-helper"]}
+                                                  {:dependent ["ns" "other-root"]
+                                                   :dependency ["ns" "target"]}]
                                                  ["ns" "target"]
                                                  ["ns" "leaf"])))))
 
@@ -533,6 +539,17 @@
                                           :dependency ["ns" "leaf"]}
                                          {:dependent ["ns" "other-root"]
                                           :dependency ["ns" "shared-helper"]}]
+                                        ["ns" "target"]))))
+
+  (is (= #{}
+         (set (independent-dependencies [{:dependent ["ns" "target"]
+                                          :dependency ["ns" "shared-helper"]}
+                                         {:dependent ["ns" "shared-helper"]
+                                          :dependency ["ns" "leaf"]}
+                                         {:dependent ["ns" "other-root"]
+                                          :dependency ["ns" "shared-helper"]}
+                                         {:dependent ["ns" "other-root"]
+                                          :dependency ["ns" "target"]}]
                                         ["ns" "target"])))))
 
 (defn entangled-vars
@@ -569,11 +586,15 @@
                          [["ns" "b"]]))))
 
 (defn entangled-dependencies [dependency-graph var]
-  (->> (conj (transitive-dependencies dependency-graph
-                                      var)
-             var)
-       (entangled-vars dependency-graph)
-       (remove #{var})))
+  (set/difference (set (transitive-dependencies dependency-graph var))
+                  (set (independent-dependencies dependency-graph var))))
+
+
+(defn sorted-independent-implementing-vars [var-definitions dependency-graph var]
+  (->> (independent-dependencies dependency-graph var)
+       (concat [var])
+       (add-vars (partial colocated-test-vars var-definitions))
+       (sort-by-dependencies dependency-graph)))
 
 (defn analysis [clj-kondo-analysis-result]
   {:dependency-graph (dependency-graph clj-kondo-analysis-result)
