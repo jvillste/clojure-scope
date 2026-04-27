@@ -31,7 +31,7 @@
    ;;:definition definition
    })
 
-(defn var-definiton-to-var [var-definition]
+(defn var-definition-to-var [var-definition]
   [(:namespace var-definition)
    (:name var-definition)])
 
@@ -76,7 +76,7 @@
 (defn dependency-graph [clj-kondo-analysis-result]
   (let [{:keys [var-usages]} clj-kondo-analysis-result
         internal-vars (->> (var-definitions clj-kondo-analysis-result)
-                           (map var-definiton-to-var)
+                           (map var-definition-to-var)
                            set)
         internal-var? (fn [[namespace name]]
                         (contains? internal-vars [namespace name]))]
@@ -140,7 +140,7 @@
                          (str "test-" (second var)))
                       (contains? test-defining-form-kinds-set
                                  (:defined-by var-definition)))))
-       (map var-definiton-to-var)))
+       (map var-definition-to-var)))
 
 (deftest test-colocated-test-vars
   (let [var-definitions [{:namespace "demo.core"
@@ -621,7 +621,7 @@
   (->> (:var-definitions analysis)
        (remove (comp test-defining-form-kinds-set
                      :defined-by))
-       (map var-definiton-to-var)
+       (map var-definition-to-var)
        (root-vars (:dependency-graph analysis))
        (remove (set alive-root-vars))
        (add-vars (partial colocated-test-vars
@@ -634,14 +634,14 @@
   (->> {:root-vars (->> (:var-definitions analysis)
                         (remove (comp test-defining-form-kinds-set
                                       :defined-by))
-                        (map var-definiton-to-var)
+                        (map var-definition-to-var)
                         (root-vars (:dependency-graph analysis)))
         :tests (->> (:var-definitions analysis)
                     (filter (comp test-defining-form-kinds-set
                                   :defined-by))
-                    (map var-definiton-to-var))
+                    (map var-definition-to-var))
         :leaf-vars (leaf-vars (:dependency-graph analysis)
-                              (map var-definiton-to-var (:var-definitions analysis)))}
+                              (map var-definition-to-var (:var-definitions analysis)))}
        (medley/map-vals (fn [vars]
                           (filter (fn [var]
                                     (if namespace
