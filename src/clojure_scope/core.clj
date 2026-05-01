@@ -627,13 +627,22 @@
   (set/intersection (set (immediate-dependencies dependency-graph var))
                     (set (entangled-dependencies dependency-graph var))))
 
+(defn analysis? [value]
+  (and (map? value)
+       (contains? value :var-definitions)
+       (contains? value :dependency-graph)))
+
 (defn sorted-implementing-vars [analysis var]
+  (assert (analysis? analysis))
+
   (->> (transitive-dependencies (:dependency-graph analysis) var)
        (concat [var])
        (add-vars (partial colocated-test-vars (:var-definitions analysis)))
        (sort-by-dependencies (:dependency-graph analysis))))
 
 (defn sorted-independent-implementing-vars [analysis var]
+  (assert (analysis? analysis))
+
   (->> (independent-dependencies (:dependency-graph analysis) var)
        (concat [var])
        (add-vars (partial colocated-test-vars (:var-definitions analysis)))
@@ -649,6 +658,8 @@
           vars))
 
 (defn dead-code [analysis alive-root-vars]
+  (assert (analysis? analysis))
+
   (->> (:var-definitions analysis)
        (remove (comp test-defining-form-kinds-set
                      :defined-by))
@@ -662,6 +673,8 @@
        (distinct)))
 
 (defn inspect-vars [analysis & [{:keys [namespace]}]]
+  (assert (analysis? analysis))
+
   (->> {:root-vars (->> (:var-definitions analysis)
                         (remove (comp test-defining-form-kinds-set
                                       :defined-by))
@@ -681,6 +694,8 @@
                                   vars)))))
 
 (defn inspect-var [analysis var & [{:keys [namespace]}]]
+  (assert (analysis? analysis))
+
   (let [immediate-dependents (immediate-dependents (:dependency-graph analysis) var)
         transitive-dependents (->> (transitive-dependents (:dependency-graph analysis) var)
                                    (add-vars (partial colocated-test-vars (:var-definitions analysis))))
@@ -697,26 +712,31 @@
                                  (remove (set immediate-dependencies))
                                  (remove (set leaf-dependencies)))]
 
-    (->> {:independent-dependencies (independent-dependencies (:dependency-graph analysis) var)
+    (->> [:immediate-dependencies immediate-dependencies
+          :transitive-dependencies transitive-dependencies
+          :middle-dependencies middle-dependencies
+          :leaf-dependencies leaf-dependencies
+
+          :independent-dependencies (independent-dependencies (:dependency-graph analysis) var)
           :entangled-dependencies (entangled-dependencies (:dependency-graph analysis) var)
+
+          :immediate-dependents immediate-dependents
           :transitive-dependents transitive-dependents
           :root-dependents root-dependents
-          :middle-dependents middle-dependents
-          :immediate-dependents immediate-dependents
-
-          :transitive-dependencies transitive-dependencies
-          :immediate-dependencies immediate-dependencies
-          :middle-dependencies middle-dependencies
-          :leaf-dependencies leaf-dependencies}
-         (medley/map-vals sort)
-         (medley/map-vals (fn [vars]
-                            (filter (fn [var]
-                                      (if namespace
-                                        (= namespace (first var))
-                                        true))
-                                    vars))))))
+          :middle-dependents middle-dependents]
+         (partition 2)
+         (map (fn [[key vars]]
+                [key (sort vars)]))
+         (map (fn [[key vars]]
+                [key (filter (fn [var]
+                               (if namespace
+                                 (= namespace (first var))
+                                 true))
+                             vars)])))))
 
 (defn filter-analysis-by-namespace [namespace analysis]
+  (assert (analysis? analysis))
+
   (-> analysis
       (update :dependency-graph
               (fn [dependency-graph]
