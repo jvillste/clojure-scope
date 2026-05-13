@@ -43,14 +43,14 @@
                       [0.2 0.2 1.0]
                       [0.0 0.0 0.0 0.0])}))
 
-(defn root-view [analysis source-by-var]
-  (let [state-atom (dependable-atom/atom {:focused-var ["mappa.core" "init-mappa"]})]
-    (fn []
+(defn root-view [_analysis _source-by-var]
+  (let [state-atom (dependable-atom/atom {:focused-var ["clojure-scope.core" "inspect-var"]})]
+    (fn [analysis source-by-var]
       (let [state @state-atom]
         (layouts/with-margin 20
           (layouts/center-horizontally
            (layouts/vertically-2 {:margin 10
-                                  :centered? true
+                                 ;; :centered? true
                                   :fill-width? true}
                                  (layouts/horizontally-2 {:margin 10}
                                                          (box (layouts/with-minimum-size 500 nil
@@ -58,16 +58,17 @@
 
                                                                                       (for [var (clojure-scope/immediate-dependents (:dependency-graph analysis)
                                                                                                                                     (:focused-var state))]
-                                                                                        [var-view analysis state-atom var]))))
+                                                                                        [var-view state-atom analysis var]))))
                                                          (text "->")
                                                          (box (layouts/with-minimum-size 500 nil
-                                                                [var-view analysis state-atom (:focused-var state)]))
+                                                                [var-view state-atom analysis (:focused-var state)]))
                                                          (text "->")
                                                          (box (layouts/with-minimum-size 500 nil
                                                                 (layouts/vertically-2 {:margin 10}
                                                                                       (for [var (clojure-scope/immediate-dependencies (:dependency-graph analysis)
                                                                                                                                       (:focused-var state))]
-                                                                                        [var-view analysis state-atom var])))))
+                                                                                        [var-view state-atom analysis var])))))
+
                                  (layouts/vertically-2 {}
                                                        (for [row (string/split (get source-by-var (:focused-var state)) #"\n")]
                                                          (text row))))))))))
@@ -85,7 +86,7 @@
       (def source-by-var (call-tree/source-code-by-var (into {}
                                                              (map (juxt clojure-scope/var-id identity))
                                                              (:var-definitions clj-kondo-analysis)))))
-  ) ;; TODO: remove me
+  )
 
 (defn analysis-view []
   [root-view analysis source-by-var])
