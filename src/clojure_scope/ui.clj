@@ -1,0 +1,93 @@
+(ns ui
+  (:require
+   [clojure-scope.call-tree :as call-tree]
+   [clojure-scope.core :as clojure-scope]
+   [clojure-scope.move :as move]
+   [clojure.set :as set]
+   [clojure.string :as string]
+   [flow-gl.graphics.font :as font]
+   [flow-gl.gui.visuals :as visuals]
+   [fungl.application :as application]
+   [fungl.dependable-atom :as dependable-atom]
+   [fungl.layouts :as layouts]))
+
+(defn on-click-mouse-event-handler [on-clicked _node event]
+  (when (= :mouse-clicked (:type event))
+    (on-clicked))
+  event)
+
+(def font (font/create-by-name "CourierNewPSMT" 30))
+
+(defn text [string]
+  (visuals/text-area string [1.0 1.0 1.0] font))
+
+(defn box [content & [{:keys [fill-color]}]]
+  (layouts/box 10
+               (visuals/rectangle-2 :fill-color (or fill-color [0.0 0.0 0.6])
+                                    :corner-arc-radius 20)
+               content))
+
+(defn var-view [state-atom analysis var]
+  (box {:node (text (str (second var)
+                         " "
+                         (count (clojure-scope/immediate-dependents (:dependency-graph analysis)
+                                                                    var))
+                         "/"
+                         (count (clojure-scope/immediate-dependencies (:dependency-graph analysis)
+                                                                      var))))
+        :mouse-event-handler [on-click-mouse-event-handler (fn []
+                                                             (swap! state-atom assoc
+                                                                    :focused-var var
+                                                                    :previous-var (:focused-var @state-atom)))]}
+       {:fill-color (if (= var (:previous-var @state-atom))
+                      [0.2 0.2 1.0]
+                      [0.0 0.0 0.0 0.0])}))
+
+(defn root-view [analysis source-by-var]
+  (let [state-atom (dependable-atom/atom {:focused-var ["mappa.core" "init-mappa"]})]
+    (fn []
+      (let [state @state-atom]
+        (layouts/with-margin 20
+          (layouts/center-horizontally
+           (layouts/vertically-2 {:margin 10
+                                  :centered? true
+                                  :fill-width? true}
+                                 (layouts/horizontally-2 {:margin 10}
+                                                         (box (layouts/with-minimum-size 500 nil
+                                                                (layouts/vertically-2 {:margin 10}
+
+                                                                                      (for [var (clojure-scope/immediate-dependents (:dependency-graph analysis)
+                                                                                                                                    (:focused-var state))]
+                                                                                        [var-view analysis state-atom var]))))
+                                                         (text "->")
+                                                         (box (layouts/with-minimum-size 500 nil
+                                                                [var-view analysis state-atom (:focused-var state)]))
+                                                         (text "->")
+                                                         (box (layouts/with-minimum-size 500 nil
+                                                                (layouts/vertically-2 {:margin 10}
+                                                                                      (for [var (clojure-scope/immediate-dependencies (:dependency-graph analysis)
+                                                                                                                                      (:focused-var state))]
+                                                                                        [var-view analysis state-atom var])))))
+                                 (layouts/vertically-2 {}
+                                                       (for [row (string/split (get source-by-var (:focused-var state)) #"\n")]
+                                                         (text row))))))))))
+
+(declare analysis
+         source-by-var)
+
+(comment
+  (do (def clj-kondo-analysis (clojure-scope/clj-kondo-analysis "src"
+                                                                {:clj-kondo-config {:lint-as {'promesa.core/let 'clojure.core/let}}}))
+      (def analysis (clojure-scope/analysis clj-kondo-analysis))
+
+      (def core-analysis (clojure-scope/filter-analysis-by-namespace "clojure-scope.core" analysis))
+
+      (def source-by-var (call-tree/source-code-by-var (into {}
+                                                             (map (juxt clojure-scope/var-id identity))
+                                                             (:var-definitions clj-kondo-analysis)))))
+  ) ;; TODO: remove me
+
+(defn analysis-view []
+  [root-view analysis source-by-var])
+
+(application/def-start analysis-view)
