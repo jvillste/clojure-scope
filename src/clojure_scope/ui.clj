@@ -39,10 +39,10 @@
                                (when (= :mouse-clicked (:type event))
                                  (prn (modifiers-down state-atom)) ;; TODO: remove me
 
-                                 (cond (= (modifiers-down state-atom) #{:shift})
+                                 (cond (= (modifiers-down state-atom) #{:control})
                                        (clipboard/spit-plain-text-to-clipboard (pr-str var))
 
-                                       (= (modifiers-down state-atom) #{:shift :meta})
+                                       (= (modifiers-down state-atom) #{:control :meta})
                                        (clipboard/spit-plain-text-to-clipboard (pr-str (second var)))
 
                                        :else
