@@ -750,6 +750,21 @@
                           (= namespace (:namespace var-definition)))
                         var-definitions)))))
 
+(defn remove-test-vars-from-analysis [analysis]
+  (assert (analysis? analysis))
+
+  (let [test-var-set (->> (:var-definitions analysis)
+                          (filter (comp test-defining-form-kinds-set :defined-by))
+                          (map var-definition-to-var)
+                          (set))]
+    (-> analysis
+        (update :dependency-graph
+                (partial remove (fn [dependency]
+                                  (or (contains? test-var-set (:dependent dependency))
+                                      (contains? test-var-set (:dependency dependency))))))
+        (update :var-definitions
+                (partial remove (comp test-defining-form-kinds-set :defined-by))))))
+
 (defn common-transitive-dependencies [dependency-graph vars]
   (->> vars
        (map (partial transitive-dependencies
