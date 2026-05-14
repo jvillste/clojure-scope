@@ -102,7 +102,8 @@
                                                                               (layouts/vertically-2 {:margin 10}
                                                                                                     (let [implementing-vars (clojure-scope/sorted-implementing-vars analysis
                                                                                                                                                                     (:focused-var state))]
-                                                                                                      (for [var implementing-vars]
+                                                                                                      (for [var (remove #{(:focused-var state)}
+                                                                                                                        implementing-vars)]
                                                                                                         (layouts/horizontally-2 {:margin 10 :centered true}
                                                                                                                                 [var-view state-atom analysis var]
                                                                                                                                 (let [outside-reference-count (count (set/difference (set (clojure-scope/immediate-dependents (:dependency-graph analysis)
