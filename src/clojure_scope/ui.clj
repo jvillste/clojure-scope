@@ -18,8 +18,8 @@
 
 (def font (font/create-by-name "CourierNewPSMT" 30))
 
-(defn text [string]
-  (visuals/text-area string [1.0 1.0 1.0] font))
+(defn text [string & [{:keys [color]}]]
+  (visuals/text-area string (or color [1.0 1.0 1.0]) font))
 
 (defn box [content & [{:keys [fill-color]}]]
   (layouts/box 10
@@ -100,9 +100,17 @@
                                                                                                       [var-view state-atom analysis var]))))
                                                                        (box (layouts/with-minimum-size 500 nil
                                                                               (layouts/vertically-2 {:margin 10}
-                                                                                                    (for [var (clojure-scope/transitive-dependencies (:dependency-graph analysis)
-                                                                                                                                                     (:focused-var state))]
-                                                                                                      [var-view state-atom analysis var])))))
+                                                                                                    (let [implementing-vars (clojure-scope/sorted-implementing-vars analysis
+                                                                                                                                                                    (:focused-var state))]
+                                                                                                      (for [var implementing-vars]
+                                                                                                        (layouts/horizontally-2 {:margin 10 :centered true}
+                                                                                                                                [var-view state-atom analysis var]
+                                                                                                                                (let [outside-reference-count (count (set/difference (set (clojure-scope/immediate-dependents (:dependency-graph analysis)
+                                                                                                                                                                                                                              var))
+                                                                                                                                                                                     (set implementing-vars)))]
+                                                                                                                                  (when (> outside-reference-count 0)
+                                                                                                                                    (text (str outside-reference-count)
+                                                                                                                                          {:color [1.0 0.0 0.0]}))))))))))
                                          :z 1}
 
                                         [scroll-pane (layouts/vertically-2 {}
