@@ -36,10 +36,12 @@
                          (count (clojure-scope/immediate-dependencies (:dependency-graph analysis)
                                                                       var))))
         :mouse-event-handler [on-click-mouse-event-handler (fn []
-                                                             (swap! state-atom assoc
-                                                                    :focused-var var
-                                                                    :previous-var (:focused-var @state-atom)))]}
-       {:fill-color (if (= var (:previous-var @state-atom))
+                                                             (swap! state-atom
+                                                                    (fn [state]
+                                                                      (-> state
+                                                                          (assoc :focused-var var)
+                                                                          (update :previous-vars conj (:focused-var state))))))]}
+       {:fill-color (if (= var (first (:previous-vars @state-atom)))
                       [0.2 0.2 1.0]
                       [0.0 0.0 0.0 0.0])}))
 
@@ -70,42 +72,51 @@
                                                                      (:defined-by var-definition))))
                                                 (map clojure-scope/var-definition-to-var)))
         state-atom (dependable-atom/atom {:focused-var (or initial-focused-var (first root-vars))
-                                          #_["clojure-scope.core" "inspect-var"]})]
+                                          :previous-vars '()})]
     (fn [analysis source-by-var & [_options]]
       (let [state @state-atom]
-        (layouts/with-margin 20
-          (layouts/center-horizontally
-           (layouts/vertically-2 {:margin 10
-                                  ;; :centered? true
-                                  :fill-width? true}
-                                 (layouts/flow (map (partial var-view state-atom analysis)
-                                                    root-vars))
-                                 {:node (layouts/horizontally-2 {:margin 10}
-                                                                (box (layouts/with-minimum-size 500 nil
-                                                                       (layouts/vertically-2 {:margin 10}
+        {:node (layouts/with-margin 20
+                 (layouts/center-horizontally
+                  (layouts/vertically-2 {:margin 10
+                                         ;; :centered? true
+                                         :fill-width? true}
+                                        (layouts/flow (map (partial var-view state-atom analysis)
+                                                           root-vars))
+                                        {:node (layouts/horizontally-2 {:margin 10}
+                                                                       (box (layouts/with-minimum-size 500 nil
+                                                                              (layouts/vertically-2 {:margin 10}
 
-                                                                                             (for [var (clojure-scope/immediate-dependents (:dependency-graph analysis)
-                                                                                                                                           (:focused-var state))]
-                                                                                               [var-view state-atom analysis var]))))
-                                                                (text "->")
-                                                                (box (layouts/with-minimum-size 500 nil
-                                                                       [var-view state-atom analysis (:focused-var state)]))
-                                                                (text "->")
-                                                                (box (layouts/with-minimum-size 500 nil
-                                                                       (layouts/vertically-2 {:margin 10}
-                                                                                             (for [var (clojure-scope/immediate-dependencies (:dependency-graph analysis)
-                                                                                                                                             (:focused-var state))]
-                                                                                               [var-view state-atom analysis var]))))
-                                                                (box (layouts/with-minimum-size 500 nil
-                                                                       (layouts/vertically-2 {:margin 10}
-                                                                                             (for [var (clojure-scope/transitive-dependencies (:dependency-graph analysis)
-                                                                                                                                              (:focused-var state))]
-                                                                                               [var-view state-atom analysis var])))))
-                                  :z 1}
+                                                                                                    (for [var (clojure-scope/immediate-dependents (:dependency-graph analysis)
+                                                                                                                                                  (:focused-var state))]
+                                                                                                      [var-view state-atom analysis var]))))
+                                                                       (text "->")
+                                                                       (box (layouts/with-minimum-size 500 nil
+                                                                              [var-view state-atom analysis (:focused-var state)]))
+                                                                       (text "->")
+                                                                       (box (layouts/with-minimum-size 500 nil
+                                                                              (layouts/vertically-2 {:margin 10}
+                                                                                                    (for [var (clojure-scope/immediate-dependencies (:dependency-graph analysis)
+                                                                                                                                                    (:focused-var state))]
+                                                                                                      [var-view state-atom analysis var]))))
+                                                                       (box (layouts/with-minimum-size 500 nil
+                                                                              (layouts/vertically-2 {:margin 10}
+                                                                                                    (for [var (clojure-scope/transitive-dependencies (:dependency-graph analysis)
+                                                                                                                                                     (:focused-var state))]
+                                                                                                      [var-view state-atom analysis var])))))
+                                         :z 1}
 
-                                 [scroll-pane (layouts/vertically-2 {}
-                                                                    (for [row (string/split (get source-by-var (:focused-var state)) #"\n")]
-                                                                      (text row)))])))))))
+                                        [scroll-pane (layouts/vertically-2 {}
+                                                                           (for [row (string/split (get source-by-var (:focused-var state)) #"\n")]
+                                                                             (text row)))])))
+         :keyboard-event-handler (fn [_node event]
+                                   (when (and (= :key-pressed (:type event))
+                                              (= :b (:key event))
+                                              (not (empty? (:previous-vars @state-atom))))
+                                     (swap! state-atom (fn [state]
+                                                         (-> state
+                                                             (assoc :focused-var (first (:previous-vars state)))
+                                                             (update :previous-vars rest))))))
+         :can-gain-focus? true}))))
 
 (declare analysis
          source-by-var)
