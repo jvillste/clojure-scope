@@ -2,19 +2,15 @@
   (:require
    [clojure-scope.call-tree :as call-tree]
    [clojure-scope.core :as clojure-scope]
-   [clojure-scope.move :as move]
+   [clojure-scope.clipboard :as clipboard]
    [clojure.set :as set]
    [clojure.string :as string]
    [flow-gl.graphics.font :as font]
+   [flow-gl.gui.keyboard :as keyboard]
    [flow-gl.gui.visuals :as visuals]
    [fungl.application :as application]
    [fungl.dependable-atom :as dependable-atom]
    [fungl.layouts :as layouts]))
-
-(defn on-click-mouse-event-handler [on-clicked _node event]
-  (when (= :mouse-clicked (:type event))
-    (on-clicked))
-  event)
 
 (def font (font/create-by-name "CourierNewPSMT" 30))
 
@@ -27,6 +23,10 @@
                                     :corner-arc-radius 20)
                content))
 
+(defn modifiers-down [state-atom]
+  (set/intersection (:keys-down-set @state-atom)
+                    #{:shift :meta :alt :control}))
+
 (defn var-view [state-atom analysis var]
   (box {:node (text (str (second var)
                          " "
@@ -35,12 +35,24 @@
                          "/"
                          (count (clojure-scope/immediate-dependencies (:dependency-graph analysis)
                                                                       var))))
-        :mouse-event-handler [on-click-mouse-event-handler (fn []
-                                                             (swap! state-atom
-                                                                    (fn [state]
-                                                                      (-> state
-                                                                          (assoc :focused-var var)
-                                                                          (update :previous-vars conj (:focused-var state))))))]}
+        :mouse-event-handler (fn [_node event]
+                               (when (= :mouse-clicked (:type event))
+                                 (prn (modifiers-down state-atom)) ;; TODO: remove me
+
+                                 (cond (= (modifiers-down state-atom) #{:shift})
+                                       (clipboard/spit-plain-text-to-clipboard (pr-str var))
+
+                                       (= (modifiers-down state-atom) #{:shift :meta})
+                                       (clipboard/spit-plain-text-to-clipboard (pr-str (second var)))
+
+                                       :else
+                                       (swap! state-atom
+                                              (fn [state]
+                                                (-> state
+                                                    (assoc :focused-var var)
+                                                    (update :previous-vars conj (:focused-var state)))))))
+                               event)}
+
        {:fill-color (if (= var (first (:previous-vars @state-atom)))
                       [0.2 0.2 1.0]
                       [0.0 0.0 0.0 0.0])}))
@@ -72,7 +84,8 @@
                                                                      (:defined-by var-definition))))
                                                 (map clojure-scope/var-definition-to-var)))
         state-atom (dependable-atom/atom {:focused-var (or initial-focused-var (first root-vars))
-                                          :previous-vars '()})]
+                                          :previous-vars '()
+                                          :keys-down-set #{}})]
     (fn [analysis source-by-var & [_options]]
       (let [state @state-atom]
         {:node (layouts/with-margin 20
@@ -118,6 +131,15 @@
                                                                            (for [row (string/split (get source-by-var (:focused-var state)) #"\n")]
                                                                              (text row)))])))
          :keyboard-event-handler (fn [_node event]
+
+                                   (when (and (= :key-pressed (:type event))
+                                              (some? (:key event)))
+                                     (swap! state-atom update :keys-down-set conj (:key event)))
+
+                                   (when (and (= :key-released (:type event))
+                                              (some? (:key event)))
+                                     (swap! state-atom update :keys-down-set disj (:key event)))
+
                                    (when (and (= :key-pressed (:type event))
                                               (= :b (:key event))
                                               (not (empty? (:previous-vars @state-atom))))
