@@ -1,4 +1,4 @@
-(ns ui
+(ns clojure-scope.ui
   (:require
    [clojure-scope.call-tree :as call-tree]
    [clojure-scope.core :as clojure-scope]
