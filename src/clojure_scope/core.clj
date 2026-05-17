@@ -770,3 +770,8 @@
        (map (partial transitive-dependencies
                      dependency-graph))
        (apply set/intersection)))
+
+(defn length-of-the-longest-path
+  "returns the length of the longest dependency path starting from the given var"
+  [dependency-graph var]
+  )
