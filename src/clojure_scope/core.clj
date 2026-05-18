@@ -774,4 +774,43 @@
 (defn length-of-the-longest-path
   "returns the length of the longest dependency path starting from the given var"
   [dependency-graph var]
-  )
+  (let [dependencies-by-var (dependencies-by-var dependency-graph)]
+    (letfn [(length-from [current-var visited-vars]
+              (let [dependencies (remove visited-vars
+                                         (get dependencies-by-var current-var))]
+                (if (empty? dependencies)
+                  0
+                  (apply max
+                         (map (fn [dependency-var]
+                                (inc (length-from dependency-var
+                                                  (conj visited-vars current-var))))
+                              dependencies)))))]
+      (length-from var #{var}))))
+
+(deftest test-length-of-the-longest-path
+  (testing "returns the longest chain length in edges"
+    (is (= 3
+           (length-of-the-longest-path [{:dependent ["ns" "a"]
+                                         :dependency ["ns" "b"]}
+                                        {:dependent ["ns" "b"]
+                                         :dependency ["ns" "c"]}
+                                        {:dependent ["ns" "b"]
+                                         :dependency ["ns" "d"]}
+                                        {:dependent ["ns" "d"]
+                                         :dependency ["ns" "e"]}]
+                                       ["ns" "a"]))))
+
+  (testing "returns zero for vars with no dependencies"
+    (is (= 0
+           (length-of-the-longest-path []
+                                       ["ns" "a"]))))
+
+  (testing "ignores cycles when computing the longest simple path"
+    (is (= 2
+           (length-of-the-longest-path [{:dependent ["ns" "a"]
+                                         :dependency ["ns" "b"]}
+                                        {:dependent ["ns" "b"]
+                                         :dependency ["ns" "a"]}
+                                        {:dependent ["ns" "b"]
+                                         :dependency ["ns" "c"]}]
+                                       ["ns" "a"])))))
