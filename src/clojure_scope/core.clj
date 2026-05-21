@@ -111,7 +111,7 @@
   (is (= {["ns" "b"] [["ns" "a"]]
           ["ns" "a"] [["ns" "c"]]}
          (dependents-by-var
-          [{:dependent ["ns" "ax"], :dependency ["ns" "b"]}
+          [{:dependent ["ns" "a"], :dependency ["ns" "b"]}
            {:dependent ["ns" "c"], :dependency ["ns" "a"]}]))))
 
 (defn immediate-dependents [dependency-graph var]
