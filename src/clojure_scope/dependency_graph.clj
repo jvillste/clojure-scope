@@ -3,11 +3,12 @@
    [clojure-scope.core :as clojure-scope]
    [clojure-scope.ui :as ui]
    [clojure.test :refer [deftest is testing]]
+   [flow-gl.gui.path :as path]
    [flow-gl.gui.scene-graph :as scene-graph]
    [fungl.layout :as layout]
    [fungl.layouts :as layouts]
    [fungl.view-compiler :as view-compiler]
-   [flow-gl.gui.path :as path]))
+   [medley.core :as medley]))
 
 (defn dependency-chain-depth
   "returns the length of the longest dependency path starting from the given var"
@@ -74,31 +75,26 @@
                                                ["ns" "c"]
                                                ["ns" "d"]]))))
 
-(defn- node-map [nodes]
-  "builds a map from var to node info for quick lookup"
-  (reduce (fn [acc node]
-            (assoc acc (:var node) node))
-          {} nodes))
-
 (defn- line-from-node [from-node to-node]
   "returns a line from the middle of the right edge of from-node
    to the middle of the left edge of to-node"
-  {:start {:x (+ (:x from-node) (:width from-node))
-           :y (+ (:y from-node) (/ (:height from-node) 2.0))}
-   :end {:x (:x to-node)
-         :y (+ (:y to-node) (/ (:height to-node) 2.0))}})
+  [{:x (+ (:x from-node) (:width from-node))
+    :y (quot (+ (:y from-node) (:height from-node)) 2)}
+   {:x (:x to-node)
+    :y (quot (+ (:y to-node) (:height to-node)) 2)}])
 
 (defn dependency-lines
   "returns lines connecting given nodes based on the dependency
   graph. Each line goes from the middle of the right edge of the
   dependent to middle the left edge of the dependency"
   [dependency-graph nodes]
-  (let [node-map (node-map nodes)]
+  (let [node-map (medley/index-by :var nodes)]
     (->> dependency-graph
          (keep (fn [{:keys [dependent dependency]}]
                  (when-let [from-node (get node-map dependent)]
                    (when-let [to-node (get node-map dependency)]
-                     (line-from-node from-node to-node))))))))
+                     (line-from-node from-node to-node)))))
+         (distinct))))
 
 (deftest test-dependency-lines
   (is (= [[{:x 50 :y 5}
