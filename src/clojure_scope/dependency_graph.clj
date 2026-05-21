@@ -75,13 +75,19 @@
                                                ["ns" "c"]
                                                ["ns" "d"]]))))
 
+
 (defn- line-from-node [from-node to-node]
   "returns a line from the middle of the right edge of from-node
    to the middle of the left edge of to-node"
-  [{:x (+ (:x from-node) (:width from-node))
-    :y (quot (+ (:y from-node) (:height from-node)) 2)}
+  [{:x (+ (:x from-node)
+          (:width from-node))
+    :y (+ (:y from-node)
+          (quot (:height from-node)
+                2))}
    {:x (:x to-node)
-    :y (quot (+ (:y to-node) (:height to-node)) 2)}])
+    :y (+ (:y to-node)
+          (quot (:height to-node)
+                2))}])
 
 (defn dependency-lines
   "returns lines connecting given nodes based on the dependency
@@ -97,7 +103,7 @@
          (distinct))))
 
 (deftest test-dependency-lines
-  (is (= [[{:x 50 :y 5}
+  (is (= [[{:x 50 :y 55}
            {:x 100 :y 10}]]
          (dependency-lines [{:dependent ["ns" "a"],
                              :dependency ["ns" "b"]}]
@@ -105,7 +111,7 @@
                            [{:width 50
                              :height 10
                              :x 0,
-                             :y 0
+                             :y 50
                              :var ["ns" "a"]}
 
                             {:width 50
@@ -115,17 +121,18 @@
                              :var ["ns" "b"]}]))))
 
 (defn dependency-graph-view [dependency-graph vars]
-  (let [scene-graph (layouts/horizontally-2 {:margin 10 :centered true}
-                                            (for [vars-in-layer (partition-by-dependency-chain-depth dependency-graph vars)]
-                                              (layouts/vertically-2 {:margin 10}
+  (let [scene-graph (layouts/horizontally-2 {:margin 50 :centered true}
+                                            (for [vars-in-layer (take 3 (reverse (partition-by-dependency-chain-depth dependency-graph vars)))]
+                                              (layouts/vertically-2 {:margin 50 :fill-width? true}
                                                                     (for [var vars-in-layer]
-                                                                      {:node (ui/text (second var))
-                                                                       :var var}))))
-        layouted-nodes (scene-graph/leaf-nodes (layout/layout-scene-graph (view-compiler/compile-view-calls scene-graph)
-                                                                          Integer/MAX_VALUE
-                                                                          Integer/MAX_VALUE))]
+                                                                      {:node (ui/box (ui/text (second var)))
+                                                                       :var var}))))]
+
     (layouts/superimpose scene-graph
-                         (for [line (dependency-lines dependency-graph layouted-nodes)]
+                         (for [line (dependency-lines dependency-graph
+                                                      (filter :var (scene-graph/flatten (layout/apply-layout-nodes (layout/layout-scene-graph (view-compiler/compile-view-calls scene-graph)
+                                                                                                                                              Integer/MAX_VALUE
+                                                                                                                                              Integer/MAX_VALUE)))))]
                            (path/path [1.0 1.0 1.0]
                                       2
                                       line)))))
