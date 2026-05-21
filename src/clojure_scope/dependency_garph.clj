@@ -75,7 +75,11 @@
                                                ["ns" "c"]
                                                ["ns" "d"]]))))
 
-(defn dependency-lines [dependency-graph nodes])
+(defn dependency-lines
+  "returns lines connecting given nodes based on the dependency
+  graph. Each line goes from the middle of the right edge of the
+  dependent to middle the left edge of the dependency"
+  [dependency-graph nodes])
 
 (deftest test-dependency-lines
   (is (= [[{:x 50 :y 5}
