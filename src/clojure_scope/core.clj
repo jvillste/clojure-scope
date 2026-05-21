@@ -771,7 +771,7 @@
                      dependency-graph))
        (apply set/intersection)))
 
-(defn length-of-the-longest-path
+(defn dependency-chain-depth
   "returns the length of the longest dependency path starting from the given var"
   [dependency-graph var]
   (let [dependencies-by-var (dependencies-by-var dependency-graph)]
@@ -787,30 +787,51 @@
                               dependencies)))))]
       (length-from var #{var}))))
 
-(deftest test-length-of-the-longest-path
+(deftest test-dependency-chain-depth
   (testing "returns the longest chain length in edges"
     (is (= 3
-           (length-of-the-longest-path [{:dependent ["ns" "a"]
-                                         :dependency ["ns" "b"]}
-                                        {:dependent ["ns" "b"]
-                                         :dependency ["ns" "c"]}
-                                        {:dependent ["ns" "b"]
-                                         :dependency ["ns" "d"]}
-                                        {:dependent ["ns" "d"]
-                                         :dependency ["ns" "e"]}]
-                                       ["ns" "a"]))))
+           (dependency-chain-depth [{:dependent ["ns" "a"]
+                                     :dependency ["ns" "b"]}
+                                    {:dependent ["ns" "b"]
+                                     :dependency ["ns" "c"]}
+                                    {:dependent ["ns" "b"]
+                                     :dependency ["ns" "d"]}
+                                    {:dependent ["ns" "d"]
+                                     :dependency ["ns" "e"]}]
+                                   ["ns" "a"]))))
 
   (testing "returns zero for vars with no dependencies"
     (is (= 0
-           (length-of-the-longest-path []
-                                       ["ns" "a"]))))
+           (dependency-chain-depth []
+                                   ["ns" "a"]))))
 
   (testing "ignores cycles when computing the longest simple path"
     (is (= 2
-           (length-of-the-longest-path [{:dependent ["ns" "a"]
-                                         :dependency ["ns" "b"]}
-                                        {:dependent ["ns" "b"]
-                                         :dependency ["ns" "a"]}
-                                        {:dependent ["ns" "b"]
-                                         :dependency ["ns" "c"]}]
-                                       ["ns" "a"])))))
+           (dependency-chain-depth [{:dependent ["ns" "a"]
+                                     :dependency ["ns" "b"]}
+                                    {:dependent ["ns" "b"]
+                                     :dependency ["ns" "a"]}
+                                    {:dependent ["ns" "b"]
+                                     :dependency ["ns" "c"]}]
+                                   ["ns" "a"])))))
+
+(defn partition-by-dependency-chain-depth [dependency-graph vars]
+  (->> (group-by (partial dependency-chain-depth dependency-graph)
+                 vars)
+       (sort-by first)
+       (map second)))
+
+(deftest test-partition-by-dependency-chain-depth
+  (is (= '([["ns" "b"] ["ns" "d"]]
+           [["ns" "c"]]
+           [["ns" "a"]])
+         (partition-by-dependency-chain-depth [{:dependent ["ns" "a"]
+                                            :dependency ["ns" "b"]}
+                                           {:dependent ["ns" "a"]
+                                            :dependency ["ns" "c"]}
+                                           {:dependent ["ns" "c"]
+                                            :dependency ["ns" "d"]}]
+                                          [["ns" "a"]
+                                           ["ns" "b"]
+                                           ["ns" "c"]
+                                           ["ns" "d"]]))))
