@@ -1,6 +1,5 @@
-(ns clojure-scope.dependency-garph
+(ns clojure-scope.dependency-graph
   (:require
-   [clojure-scope.core :as clojure-scope]
    [clojure-scope.core :as clojure-scope]
    [clojure-scope.ui :as ui]
    [clojure.test :refer [deftest is testing]]
@@ -75,11 +74,31 @@
                                                ["ns" "c"]
                                                ["ns" "d"]]))))
 
+(defn- node-map [nodes]
+  "builds a map from var to node info for quick lookup"
+  (reduce (fn [acc node]
+            (assoc acc (:var node) node))
+          {} nodes))
+
+(defn- line-from-node [from-node to-node]
+  "returns a line from the middle of the right edge of from-node
+   to the middle of the left edge of to-node"
+  {:start {:x (+ (:x from-node) (:width from-node))
+           :y (+ (:y from-node) (/ (:height from-node) 2.0))}
+   :end {:x (:x to-node)
+         :y (+ (:y to-node) (/ (:height to-node) 2.0))}})
+
 (defn dependency-lines
   "returns lines connecting given nodes based on the dependency
   graph. Each line goes from the middle of the right edge of the
   dependent to middle the left edge of the dependency"
-  [dependency-graph nodes])
+  [dependency-graph nodes]
+  (let [node-map (node-map nodes)]
+    (->> dependency-graph
+         (keep (fn [{:keys [dependent dependency]}]
+                 (when-let [from-node (get node-map dependent)]
+                   (when-let [to-node (get node-map dependency)]
+                     (line-from-node from-node to-node))))))))
 
 (deftest test-dependency-lines
   (is (= [[{:x 50 :y 5}
