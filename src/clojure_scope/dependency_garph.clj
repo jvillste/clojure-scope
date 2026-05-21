@@ -1,8 +1,14 @@
 (ns clojure-scope.dependency-garph
   (:require
    [clojure-scope.core :as clojure-scope]
-   [clojure.test :refer [deftest is testing]]))
-
+   [clojure-scope.core :as clojure-scope]
+   [clojure-scope.ui :as ui]
+   [clojure.test :refer [deftest is testing]]
+   [flow-gl.gui.scene-graph :as scene-graph]
+   [fungl.layout :as layout]
+   [fungl.layouts :as layouts]
+   [fungl.view-compiler :as view-compiler]
+   [flow-gl.gui.path :as path]))
 
 (defn dependency-chain-depth
   "returns the length of the longest dependency path starting from the given var"
@@ -68,3 +74,39 @@
                                                ["ns" "b"]
                                                ["ns" "c"]
                                                ["ns" "d"]]))))
+
+(defn dependency-lines [dependency-graph nodes])
+
+(deftest test-dependency-lines
+  (is (= [[{:x 50 :y 5}
+           {:x 100 :y 10}]]
+         (dependency-lines [{:dependent ["ns" "a"],
+                             :dependency ["ns" "b"]}]
+
+                           [{:width 50
+                             :height 10
+                             :x 0,
+                             :y 0
+                             :var ["ns" "a"]}
+
+                            {:width 50
+                             :height 20
+                             :x 100,
+                             :y 0
+                             :var ["ns" "b"]}]))))
+
+(defn dependency-graph-view [dependency-graph vars]
+  (let [scene-graph (layouts/horizontally-2 {:margin 10 :centered true}
+                                            (for [vars-in-layer (partition-by-dependency-chain-depth dependency-graph vars)]
+                                              (layouts/vertically-2 {:margin 10}
+                                                                    (for [var vars-in-layer]
+                                                                      {:node (ui/text (second var))
+                                                                       :var var}))))
+        layouted-nodes (scene-graph/leaf-nodes (layout/layout-scene-graph (view-compiler/compile-view-calls scene-graph)
+                                                                          Integer/MAX_VALUE
+                                                                          Integer/MAX_VALUE))]
+    (layouts/superimpose scene-graph
+                         (for [line (dependency-lines dependency-graph layouted-nodes)]
+                           (path/path [1.0 1.0 1.0]
+                                      2
+                                      line)))))
