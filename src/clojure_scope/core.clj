@@ -244,6 +244,13 @@
          (remove (fn [var]
                    (contains? dependents-by-var var))))))
 
+(defn nontest-root-vars [analysis]
+  (->> (:var-definitions analysis)
+       (remove (comp test-defining-form-kinds-set
+                     :defined-by))
+       (map var-definition-to-var)
+       (root-vars (:dependency-graph analysis))))
+
 (defn filter-dependency-graph-by-vars [vars dependency-graph]
   (let [var-set (set vars)]
     (filter (fn [dependency]
