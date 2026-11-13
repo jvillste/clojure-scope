@@ -5,6 +5,7 @@
             [clojure-scope.move-test]
             [clojure-scope.crossing-minimization]
             [clojure-scope.dependency-graph]
+            [clojure-scope.spring-layout]
             [clojure-scope.core]
             [clojure.test :as test]))
 
@@ -15,6 +16,7 @@
                                              'clojure-scope.move-test
                                              'clojure-scope.crossing-minimization
                                              'clojure-scope.core
-                                             'clojure-scope.dependency-graph)]
+                                             'clojure-scope.dependency-graph
+                                             'clojure-scope.spring-layout)]
     (when (pos? (+ fail error))
       (System/exit 1))))
