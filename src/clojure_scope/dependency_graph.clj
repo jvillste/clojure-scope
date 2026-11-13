@@ -1,13 +1,17 @@
 (ns clojure-scope.dependency-graph
   (:require
    [clojure-scope.call-tree :as call-tree]
-   [clojure-scope.crossing-minimization :as crossing-minimization]
    [clojure-scope.core :as clojure-scope]
+   [clojure-scope.spring-layout :as spring-layout]
    [clojure-scope.ui :as ui]
    [clojure.test :refer [deftest is testing]]
+   [flow-gl.graphics.font :as font]
    [flow-gl.gui.path :as path]
+   [flow-gl.gui.polygon :as polygon]
    [flow-gl.gui.scene-graph :as scene-graph]
+   [flow-gl.gui.visuals :as visuals]
    [fungl.application :as application]
+   [fungl.dependable-atom :as dependable-atom]
    [fungl.layout :as layout]
    [fungl.layouts :as layouts]
    [fungl.view-compiler :as view-compiler]
@@ -112,13 +116,13 @@
                              :dependency ["ns" "b"]}]
 
                            [{:width 50
-                             :height 10
+                             ;;:height 10
                              :x 0,
                              :y 50
                              :var ["ns" "a"]}
 
                             {:width 50
-                             :height 20
+                             ;;:height 20
                              :x 100,
                              :y 0
                              :var ["ns" "b"]}]))))
@@ -150,9 +154,9 @@
                                                                     (for [var vars-in-layer]
                                                                       {:node (ui/box (ui/text (second var)))
                                                                        :var var}))))]
-    (run! prn (map (partial scene-graph/select-node-keys [:x :y :var :width :height])  (filter :var (scene-graph/flatten (layout/layout-scene-graph (view-compiler/compile-view-calls scene-graph)
-                                                                                                                                                    Integer/MAX_VALUE
-                                                                                                                                                    Integer/MAX_VALUE))))) ;; TODO: remove me
+    #_(run! prn (map (partial scene-graph/select-node-keys [:x :y :var :width :height])  (filter :var (scene-graph/flatten (layout/layout-scene-graph (view-compiler/compile-view-calls scene-graph)
+                                                                                                                                                      Integer/MAX_VALUE
+                                                                                                                                                      Integer/MAX_VALUE))))) ;; TODO: remove me
 
     #_scene-graph
     (layouts/superimpose scene-graph
@@ -194,7 +198,86 @@
                                                    (map clojure-scope/var-definition-to-var))))
   )
 
+(def spring-graph-font (font/create-by-name "CourierNewPSMT" 40))
+
+(defn spring-graph-text [string & [{:keys [color]}]]
+  (visuals/text-area string (or color [1.0 1.0 1.0]) spring-graph-font))
+
+(defn scale-coordinates [scale {:keys [x y]}]
+  {:x (* scale x)
+   :y (* scale y)})
+
+(defn arrow [from to]
+  {:children [(path/path [1.0 1.0 1.0]
+                         2
+                         [from
+                          to])
+
+              (polygon/polygon [1.0 1.0 1.0]
+                               2
+                               [1.0 1.0 1.0]
+                               [;; add arrow head coordinates here
+                                ])]})
+
+(defn spring-view [dependency-graph]
+  (let [layout (spring-layout/layout-dependency-graph dependency-graph
+                                                      {:node-distance 50
+                                                       :iterations 100})
+        state-atom (dependable-atom/atom {:scale 3.0
+                                          :meta-down? false})]
+    (fn [dependency-graph]
+      (let [state @state-atom]
+        {:type :spring-view
+         :children [[ui/scroll-pane {:type :spring-superimpose
+                                     :node (layouts/superimpose (concat #_[(visuals/rectangle-2 :fill-color [1.0 0.1 1.0 1.0])
+                                                                           #_(assoc :width 500
+                                                                                    :height 500
+                                                                                    )]
+                                                                        (for [[var coordinates] layout]
+                                                                          {:node [spring-graph-text (second var)]
+                                                                           ;; (visuals/rectangle-2 :fill-color [1.0 0.1 1.0 1.0])
+                                                                           ;; :width 20
+                                                                           ;; ;;:height 20
+                                                                           :x (* (:scale state) (:x coordinates))
+                                                                           :y (* (:scale state) (:y coordinates))})
+                                                                        (for [{:keys [dependent dependency]} dependency-graph]
+                                                                          (path/path [1.0 1.0 1.0]
+                                                                                     2
+                                                                                     [(scale-coordinates (:scale state) (get layout dependent))
+                                                                                      (scale-coordinates (:scale state) (get layout dependency))]))))
+                                     :x 1500
+                                     :y 300}]]
+         :keyboard-event-handler (fn [_node event]
+                                   (when (and (= (:type event) :key-pressed)
+                                              (= :meta (:key event)))
+                                     (swap! state-atom assoc :meta-down? true))
+                                   (when (and (= (:type event) :key-released)
+                                              (= :meta (:key event)))
+                                     (swap! state-atom assoc :meta-down? false)))
+         :can-gain-focus? true
+         :mouse-event-handler (fn [_node event]
+                                (if (and (= :mouse-wheel-rotated
+                                            (:type event))
+                                         (:meta-down? @state-atom)
+                                         (or (= :going-down
+                                                (:handling-phase event))
+                                             (= :on-target
+                                                (:handling-phase event))))
+                                  (do (swap! state-atom update :scale (fn [scale]
+                                                                        (+ scale (if (neg? (:wheel-rotation event))
+                                                                                   -0.01
+                                                                                   0.01))))
+                                      :stop)
+                                  event))}))))
+
+
 (defn tagging-view-demo []
   [tagging-view analysis])
 
+
 (application/def-start tagging-view-demo)
+#_(application/def-start spring-view-demo)
+
+(when (deref mappa/event-channel-atom)
+  (clojure.core.async/>!! @mappa/event-channel-atom
+                          {:type :reset}))
