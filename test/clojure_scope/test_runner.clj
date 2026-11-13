@@ -3,6 +3,7 @@
             [clojure-scope.core-test]
             [clojure-scope.line-region-test]
             [clojure-scope.move-test]
+            [clojure-scope.crossing-minimization]
             [clojure-scope.dependency-graph]
             [clojure-scope.core]
             [clojure.test :as test]))
@@ -12,6 +13,7 @@
                                              'clojure-scope.core-test
                                              'clojure-scope.line-region-test
                                              'clojure-scope.move-test
+                                             'clojure-scope.crossing-minimization
                                              'clojure-scope.core
                                              'clojure-scope.dependency-graph)]
     (when (pos? (+ fail error))

@@ -1,6 +1,7 @@
 (ns clojure-scope.dependency-graph
   (:require
    [clojure-scope.call-tree :as call-tree]
+   [clojure-scope.crossing-minimization :as crossing-minimization]
    [clojure-scope.core :as clojure-scope]
    [clojure-scope.ui :as ui]
    [clojure.test :refer [deftest is testing]]
@@ -122,20 +123,6 @@
                              :y 0
                              :var ["ns" "b"]}]))))
 
-(defn minimize-crossings [dependency-graph layers])
-
-(deftest test-minimize-crossings
-  (is (= '([:c2 :a2 :b2]
-           [:a1 :b1 :c1])
-         (minimize-crossings [{:dependent :a1
-                               :dependency :c2}
-                              {:dependent :b1
-                               :dependency :a2}
-                              {:dependent :c1
-                               :dependency :b2}]
-                             ([:a2 :b2 :c2]
-                              [:a1 :b1 :c1])))))
-
 (defn dependency-graph-to-vars [dependency-graph]
   (->> dependency-graph
        (mapcat (fn [dependency]
@@ -157,7 +144,8 @@
 
 (defn dependency-graph-view [dependency-graph vars]
   (let [scene-graph (layouts/horizontally-2 {:margin 500 :centered false}
-                                            (for [vars-in-layer (reverse (take 2 (partition-by-dependency-chain-depth dependency-graph vars)))]
+                                            (for [vars-in-layer (->> (reverse (take 2 (partition-by-dependency-chain-depth dependency-graph vars)))
+                                                                     #_(crossing-minimization/minimize-crossings dependency-graph))]
                                               (layouts/vertically-2 {:margin 5 :fill-width? true}
                                                                     (for [var vars-in-layer]
                                                                       {:node (ui/box (ui/text (second var)))
@@ -176,6 +164,7 @@
                                       2
                                       line)))))
 
+(declare analysis source-by-var)
 
 (comment
   (do (def clj-kondo-analysis (clojure-scope/clj-kondo-analysis "src"
@@ -192,7 +181,6 @@
 (defn demo-view []
   [dependency-graph-view (:dependency-graph analysis) source-by-var])
 
-
 (defn tagging-view [analysis]
   [dependency-graph-view
    (:dependency-graph analysis)
@@ -205,7 +193,6 @@
                                               (->> (:var-definitions analysis)
                                                    (map clojure-scope/var-definition-to-var))))
   )
-
 
 (defn tagging-view-demo []
   [tagging-view analysis])
