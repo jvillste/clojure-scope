@@ -62,39 +62,35 @@
                           [0.0 0.0 0.0 0.0])}))
 
 #_(defn scroll-pane [_content]
-  (let [state-atom (dependable-atom/atom {:x 0 :y 0})]
-    (fn [content]
-      (layouts/transpose (:x @state-atom)
-                         (:y @state-atom)
-                         {:node {:children [content]}
-                          ;; :x (:x @state-atom)
-                          ;; :y (:y @state-atom)
-                          :mouse-event-handler (fn [_node event]
-                                                 (when (= :mouse-wheel-rotated
-                                                          (:type event))
-                                                   (swap! state-atom
-                                                          update
-                                                          (if (:horizontal? event)
-                                                            :x :y)
-                                                          (fn [value]
-                                                            (min 0 (- value (* 10 (:precise-wheel-rotation event)))))))
-                                                 event)}))))
+    (let [state-atom (dependable-atom/atom {:x 0 :y 0})]
+      (fn [content]
+        (layouts/transpose (:x @state-atom)
+                           (:y @state-atom)
+                           {:node {:children [content]}
+                            ;; :x (:x @state-atom)
+                            ;; :y (:y @state-atom)
+                            :mouse-event-handler (fn [_node event]
+                                                   (when (= :mouse-wheel-rotated
+                                                            (:type event))
+                                                     (swap! state-atom
+                                                            update
+                                                            (if (:horizontal? event)
+                                                              :x :y)
+                                                            (fn [value]
+                                                              (min 0 (- value (* 10 (:precise-wheel-rotation event)))))))
+                                                   event)}))))
 
 (defn scroll-pane [_content]
   (let [state-atom (dependable-atom/atom {:x 0 :y 0})]
     (fn [content]
-      (assoc (visuals/clip (layouts/transpose (:x @state-atom)
-                                              (:y @state-atom)
-                                              content))
+      (assoc #_(visuals/clip )
+             (layouts/transpose (:x @state-atom)
+                                (:y @state-atom)
+                                content)
              ;; :width 500
              ;; :height 500
+             :type :scroll-pane
              :mouse-event-handler (fn [_node event]
-                                    ;; (when (and (= :mouse-clicked (:type event))
-                                    ;;            (or (= :going-down (:handling-phase event))
-                                    ;;                (= :on-target (:handling-phase event))))
-
-                                    ;;   (log! "scroll pane clicked"))
-
                                     (when (= :mouse-wheel-rotated
                                              (:type event))
                                       (swap! state-atom
@@ -131,7 +127,7 @@
                                          ;; :centered? true
                                          :fill-width? true}
                                         (layouts/flow (map (partial var-view state-atom analysis)
-                                                             root-vars))
+                                                           root-vars))
                                         #_(layouts/flow (map (partial var-view state-atom analysis)
                                                              leaf-vars))
                                         {:node (layouts/horizontally-2 {:margin 10}
@@ -157,19 +153,19 @@
                                                                        #_[scroll-pane
                                                                           ]
                                                                        (box (layouts/with-minimum-size 500 nil
-                                                                                 (layouts/vertically-2 {:margin 10}
-                                                                                                       (let [implementing-vars (clojure-scope/sorted-implementing-vars analysis
-                                                                                                                                                                       (:focused-var state))]
-                                                                                                         (for [var (remove #{(:focused-var state)}
-                                                                                                                           implementing-vars)]
-                                                                                                           (layouts/horizontally-2 {:margin 10 :centered true}
-                                                                                                                                   [var-view state-atom analysis var]
-                                                                                                                                   (let [outside-reference-count (count (set/difference (set (clojure-scope/immediate-dependents (:dependency-graph analysis)
-                                                                                                                                                                                                                                 var))
-                                                                                                                                                                                        (set implementing-vars)))]
-                                                                                                                                     (when (> outside-reference-count 0)
-                                                                                                                                       (text (str outside-reference-count)
-                                                                                                                                             {:color [1.0 0.0 0.0]}))))))))))
+                                                                              (layouts/vertically-2 {:margin 10}
+                                                                                                    (let [implementing-vars (clojure-scope/sorted-implementing-vars analysis
+                                                                                                                                                                    (:focused-var state))]
+                                                                                                      (for [var (remove #{(:focused-var state)}
+                                                                                                                        implementing-vars)]
+                                                                                                        (layouts/horizontally-2 {:margin 10 :centered true}
+                                                                                                                                [var-view state-atom analysis var]
+                                                                                                                                (let [outside-reference-count (count (set/difference (set (clojure-scope/immediate-dependents (:dependency-graph analysis)
+                                                                                                                                                                                                                              var))
+                                                                                                                                                                                     (set implementing-vars)))]
+                                                                                                                                  (when (> outside-reference-count 0)
+                                                                                                                                    (text (str outside-reference-count)
+                                                                                                                                          {:color [1.0 0.0 0.0]}))))))))))
                                          :z 1}
 
                                         #_[scroll-pane ]
