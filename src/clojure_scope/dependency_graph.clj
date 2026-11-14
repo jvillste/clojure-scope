@@ -198,7 +198,7 @@
                                                    (map clojure-scope/var-definition-to-var))))
   )
 
-(def spring-graph-font (font/create-by-name "CourierNewPSMT" 40))
+(def spring-graph-font (font/create-by-name "CourierNewPSMT" 30))
 
 (defn spring-graph-text [string & [{:keys [color]}]]
   (visuals/text-area string (or color [1.0 1.0 1.0]) spring-graph-font))
@@ -207,8 +207,45 @@
   {:x (* scale x)
    :y (* scale y)})
 
+(defn arrow-head-coordinates
+  "Returns the three points of an arrow head at `to`, pointing from `from` to `to`."
+  [{from-x :x from-y :y} {to-x :x to-y :y}]
+  (let [delta-x (- to-x from-x)
+        delta-y (- to-y from-y)
+        distance (Math/hypot delta-x delta-y)
+        [unit-x unit-y] (if (zero? distance)
+                          [0.0 0.0]
+                          [(/ delta-x distance) (/ delta-y distance)])
+        perpendicular-x (- unit-y)
+        perpendicular-y unit-x
+        head-length 25.0
+        head-width 10.0
+        base-x (- to-x (* head-length unit-x))
+        base-y (- to-y (* head-length unit-y))]
+    [{:x to-x :y to-y}
+     {:x (+ base-x (* head-width perpendicular-x))
+      :y (+ base-y (* head-width perpendicular-y))}
+     {:x (- base-x (* head-width perpendicular-x))
+      :y (- base-y (* head-width perpendicular-y))}]))
+
+(deftest test-arrow-head-coordinates
+  (testing "the arrow head tip is at to and the base is behind it"
+    (is (= [{:x 20 :y 0}
+            {:x 5 :y 7}
+            {:x 5 :y -7}]
+           (map (fn [coordinate]
+                  (update-vals coordinate (fn [value] (Math/round (double value)))))
+                (arrow-head-coordinates {:x 0 :y 0} {:x 20 :y 0})))))
+  (testing "the arrow head points in the direction of travel"
+    (let [[tip left right] (arrow-head-coordinates {:x 0 :y 0} {:x 0 :y 10})]
+      (is (= {:x 0 :y 10} tip))
+      (is (< (:y left) 10))
+      (is (< (:y right) 10)))))
+
 (defn arrow [from to]
-  {:children [(path/path [1.0 1.0 1.0]
+  {:type :arrow
+   :get-size layouts/fit-to-children-get-size
+   :children [(path/path [1.0 1.0 1.0]
                          2
                          [from
                           to])
@@ -216,14 +253,36 @@
               (polygon/polygon [1.0 1.0 1.0]
                                2
                                [1.0 1.0 1.0]
-                               [;; add arrow head coordinates here
-                                ])]})
+                               (arrow-head-coordinates from to))]})
+
+(defn spring-view-keyboard-event-handler [state-atom _node event]
+  (when (and (= (:type event) :key-pressed)
+             (= :meta (:key event)))
+    (swap! state-atom assoc :meta-down? true))
+  (when (and (= (:type event) :key-released)
+             (= :meta (:key event)))
+    (swap! state-atom assoc :meta-down? false)))
+
+(defn spring-view-mouse-event-handler [state-atom _node event]
+  (if (and (= :mouse-wheel-rotated
+              (:type event))
+           (:meta-down? @state-atom)
+           (or (= :going-down
+                  (:handling-phase event))
+               (= :on-target
+                  (:handling-phase event))))
+    (do (swap! state-atom update :scale (fn [scale]
+                                          (+ scale (if (neg? (:wheel-rotation event))
+                                                     -0.01
+                                                     0.01))))
+        :stop)
+    event))
 
 (defn spring-view [dependency-graph]
   (let [layout (spring-layout/layout-dependency-graph dependency-graph
                                                       {:node-distance 50
-                                                       :iterations 100})
-        state-atom (dependable-atom/atom {:scale 3.0
+                                                       :iterations 1000})
+        state-atom (dependable-atom/atom {:scale 2.0
                                           :meta-down? false})]
     (fn [dependency-graph]
       (let [state @state-atom]
@@ -241,34 +300,13 @@
                                                                            :x (* (:scale state) (:x coordinates))
                                                                            :y (* (:scale state) (:y coordinates))})
                                                                         (for [{:keys [dependent dependency]} dependency-graph]
-                                                                          (path/path [1.0 1.0 1.0]
-                                                                                     2
-                                                                                     [(scale-coordinates (:scale state) (get layout dependent))
-                                                                                      (scale-coordinates (:scale state) (get layout dependency))]))))
+                                                                          (arrow (scale-coordinates (:scale state) (get layout dependent))
+                                                                                 (scale-coordinates (:scale state) (get layout dependency))))))
                                      :x 1500
                                      :y 300}]]
-         :keyboard-event-handler (fn [_node event]
-                                   (when (and (= (:type event) :key-pressed)
-                                              (= :meta (:key event)))
-                                     (swap! state-atom assoc :meta-down? true))
-                                   (when (and (= (:type event) :key-released)
-                                              (= :meta (:key event)))
-                                     (swap! state-atom assoc :meta-down? false)))
+         :keyboard-event-handler [spring-view-keyboard-event-handler state-atom]
          :can-gain-focus? true
-         :mouse-event-handler (fn [_node event]
-                                (if (and (= :mouse-wheel-rotated
-                                            (:type event))
-                                         (:meta-down? @state-atom)
-                                         (or (= :going-down
-                                                (:handling-phase event))
-                                             (= :on-target
-                                                (:handling-phase event))))
-                                  (do (swap! state-atom update :scale (fn [scale]
-                                                                        (+ scale (if (neg? (:wheel-rotation event))
-                                                                                   -0.01
-                                                                                   0.01))))
-                                      :stop)
-                                  event))}))))
+         :mouse-event-handler [spring-view-mouse-event-handler state-atom]}))))
 
 
 (defn tagging-view-demo []

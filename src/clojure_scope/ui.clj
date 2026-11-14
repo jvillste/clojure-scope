@@ -80,6 +80,17 @@
                                                               (min 0 (- value (* 10 (:precise-wheel-rotation event)))))))
                                                    event)}))))
 
+(defn scroll-pane-mouse-event-handler [state-atom _node event]
+  (when (= :mouse-wheel-rotated
+           (:type event))
+    (swap! state-atom
+           update
+           (if (:horizontal? event)
+             :x :y)
+           (fn [value]
+             (- value (* 10 (:precise-wheel-rotation event))))))
+
+  event)
 (defn scroll-pane [_content]
   (let [state-atom (dependable-atom/atom {:x 0 :y 0})]
     (fn [content]
@@ -90,17 +101,7 @@
              ;; :width 500
              ;; :height 500
              :type :scroll-pane
-             :mouse-event-handler (fn [_node event]
-                                    (when (= :mouse-wheel-rotated
-                                             (:type event))
-                                      (swap! state-atom
-                                             update
-                                             (if (:horizontal? event)
-                                               :x :y)
-                                             (fn [value]
-                                               (- value (* 10 (:precise-wheel-rotation event))))))
-
-                                    event)))))
+             :mouse-event-handler [scroll-pane-mouse-event-handler state-atom]))))
 
 (defn root-view [analysis _source-by-var & [{:keys [initial-focused-var]}]]
   (let [root-vars (clojure-scope/root-vars (:dependency-graph analysis)
